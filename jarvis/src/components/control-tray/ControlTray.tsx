@@ -216,7 +216,7 @@ function ControlTray({
         {children}
       </nav>
 
-      <div className={cn("connection-container", { connected })}>
+      {/* <div className={cn("connection-container", { connected })}>
         <div className="connection-button-container">
           <button
             ref={connectButtonRef}
@@ -229,7 +229,7 @@ function ControlTray({
           </button>
         </div>
         <span className="text-indicator">Streaming</span>
-      </div>
+      </div> */}
       {/* {enableEditingSettings ? <SettingsDialog /> : ""} */}
     </section>
   );
