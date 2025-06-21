@@ -29,6 +29,7 @@ const ARWindow = class {
   title: string;
   position: { x: number; y: number; z: number };
   cssObject: CSS3DObject | null = null;
+  resizeHandle: HTMLDivElement | null = null;
 
   constructor(id: string, scene: THREE.Scene, options: any = {}) {
     this.id = id;
@@ -113,6 +114,22 @@ const ARWindow = class {
     contentDiv.style.whiteSpace = 'pre';
     contentDiv.innerHTML = htmlContent;
     container.appendChild(contentDiv);
+
+    const resizeHandle = document.createElement('div');
+    resizeHandle.style.position = 'absolute';
+    resizeHandle.style.width = '24px';
+    resizeHandle.style.height = '24px';
+    resizeHandle.style.right = '0';
+    resizeHandle.style.bottom = '0';
+    resizeHandle.style.cursor = 'nwse-resize';
+    resizeHandle.style.background = 'rgba(0,0,0,0.15)';
+    resizeHandle.style.zIndex = '10';
+    resizeHandle.style.borderBottomRightRadius = '6px';
+    container.appendChild(resizeHandle);
+
+    // Store for later use
+    this.resizeHandle = resizeHandle;
+
     const cssObj = new CSS3DObject(container);
     // Position to align with content plane
     cssObj.position.copy(this.contentMesh!.position);
