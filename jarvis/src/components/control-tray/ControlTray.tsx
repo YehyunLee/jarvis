@@ -107,9 +107,19 @@ function ControlTray({
       ]);
     };
     if (connected && !muted && audioRecorder) {
-      audioRecorder.on("data", onData).on("volume", setInVolume).start();
+      audioRecorder
+        .on("data", onData)
+        .on("volume", setInVolume)
+        .start()
+        .catch((err: any) => {
+          console.error("AudioRecorder start error:", err);
+        });
     } else {
-      audioRecorder.stop();
+      try {
+        audioRecorder.stop();
+      } catch (err) {
+        console.warn("AudioRecorder stop error:", err);
+      }
     }
     return () => {
       audioRecorder.off("data", onData).off("volume", setInVolume);
