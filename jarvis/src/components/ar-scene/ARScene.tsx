@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { ARButton } from 'three/examples/jsm/webxr/ARButton.js';
 import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
@@ -295,7 +295,6 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const webcam = useWebcam();
   const overlayRef = useRef<HTMLDivElement>(null);
-  const [session, setSession] = useState<XRSession | null>(null);
 
   // Compute a fresh spawn position in front of the user, offsetting by angle to avoid overlap
   const createWindow = (scene: THREE.Scene, options: any = {}) => {
@@ -379,34 +378,6 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
       delete (window as any).createARHTMLWindow;
     };
   }, []);
-
-  const initAR = async () => {
-    const newSession = await navigator.xr.requestSession("immersive-ar", {
-      optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking", "hit-test"],
-      domOverlay: { root: overlayRef.current },
-    });
-
-    newSession.addEventListener("select", (event) => {
-      const hitTestSource = event.inputSource.hitTestSource;
-      if (hitTestSource) {
-        const hitTestResults = event.frame.getHitTestResults(hitTestSource);
-        if (hitTestResults.length > 0) {
-          const hitTestPose = hitTestResults[0].getPose(newSession.renderState.baseLayer.getView(event.frame.views[0]).transform.inverse());
-          createWindow(sceneRef.current, { position: hitTestPose.transform.position });
-        }
-      }
-    });
-
-    setSession(newSession);
-    if (props.onSessionStart) {
-      props.onSessionStart();
-    }
-
-    if (rendererRef.current) {
-      rendererRef.current.xr.setReferenceSpaceType("local");
-      rendererRef.current.xr.setSession(newSession);
-    }
-  };
 
   // Interaction handling
   const handleInteraction = (intersection: THREE.Intersection, isPress: boolean) => {
