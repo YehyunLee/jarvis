@@ -99,18 +99,34 @@ function ControlTray({
 
   useEffect(() => {
     const onData = (base64: string) => {
-      // Get the last 30 frames from the buffer
-      const imageParts = frameBuffer.current.map((frame) => ({
-        mimeType: "image/jpeg",
-        data: frame.data,
-      }));
+      // Get the latest video frame from the buffer
+      const videoRefFrame = renderCanvasRef.current;
+      let videoData: string | null = null;
+      if (videoRefFrame && videoRef && videoRef.current) {
+        const ctx = videoRefFrame.getContext("2d");
+        videoRefFrame.width = videoRef.current.videoWidth * 0.25;
+        videoRefFrame.height = videoRef.current.videoHeight * 0.25;
+        if (videoRefFrame.width + videoRefFrame.height > 0) {
+          ctx?.drawImage(
+            videoRef.current,
+            0,
+            0,
+            videoRefFrame.width,
+            videoRefFrame.height
+          );
+          const base64img = videoRefFrame.toDataURL("image/jpeg", 1.0);
+          videoData = base64img.slice(base64img.indexOf(",") + 1);
+        }
+      }
       const payload = [
         {
           mimeType: "audio/pcm;rate=16000",
           data: base64,
         },
-        ...imageParts,
       ];
+      if (videoData) {
+        payload.push({ mimeType: "image/jpeg", data: videoData });
+      }
       client.sendRealtimeInput(payload);
     };
     if (connected && !muted && audioRecorder) {
@@ -132,58 +148,6 @@ function ControlTray({
       audioRecorder.off("data", onData).off("volume", setInVolume);
     };
   }, [connected, client, muted, audioRecorder, videoRef]);
-
-  // --- Frame buffer for last 30 frames ---
-  const FRAME_BUFFER_SIZE = 30;
-  const frameBuffer = useRef<{ data: string; timestamp: number }[]>([]);
-
-  // Update frame buffer in the video frame capture effect
-  useEffect(() => {
-    if (videoRef && videoRef.current) {
-      videoRef.current.srcObject = activeVideoStream;
-    }
-
-    let timeoutId = -1;
-
-    function captureFrameToBuffer() {
-      const video = videoRef?.current;
-      const canvas = renderCanvasRef.current;
-      if (!video || !canvas) return;
-      const ctx = canvas.getContext("2d");
-      canvas.width = video.videoWidth * 0.25;
-      canvas.height = video.videoHeight * 0.25;
-      if (canvas.width + canvas.height > 0) {
-        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const base64 = canvas.toDataURL("image/jpeg", 1.0);
-        const data = base64.slice(base64.indexOf(",") + 1);
-        frameBuffer.current.push({ data, timestamp: Date.now() });
-        if (frameBuffer.current.length > FRAME_BUFFER_SIZE) {
-          frameBuffer.current.splice(0, frameBuffer.current.length - FRAME_BUFFER_SIZE);
-        }
-      }
-      if (connected) {
-        timeoutId = window.setTimeout(captureFrameToBuffer, 1000 / 10); // 10 fps
-      }
-    }
-    if (connected && activeVideoStream !== null) {
-      requestAnimationFrame(captureFrameToBuffer);
-    }
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [connected, activeVideoStream, videoRef]);
-
-  // --- Function to send all buffered frames as a multimodal turn ---
-  const sendBufferedFramesWithPrompt = (prompt: string) => {
-    const parts = [
-      { text: prompt },
-      ...frameBuffer.current.map((frame) => ({
-        inlineData: { mimeType: "image/jpeg", data: frame.data },
-      })),
-    ];
-    client.send(parts);
-  };
-  (window as any).sendBufferedFramesWithPrompt = sendBufferedFramesWithPrompt;
 
   useEffect(() => {
     if (videoRef && videoRef.current) {
@@ -275,7 +239,7 @@ function ControlTray({
         {children}
       </nav>
 
-      {/* <div className={cn("connection-container", { connected })}>
+      <div className={cn("connection-container", { connected })}>
         <div className="connection-button-container">
           <button
             ref={connectButtonRef}
@@ -288,7 +252,7 @@ function ControlTray({
           </button>
         </div>
         <span className="text-indicator">Streaming</span>
-      </div> */}
+      </div>
       {/* {enableEditingSettings ? <SettingsDialog /> : ""} */}
     </section>
   );
