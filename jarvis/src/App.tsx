@@ -15,10 +15,12 @@
  */
 
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
-import ControlTray from "./components/control-tray/ControlTray";
 import { LiveClientOptions } from "./types";
-import ARScene from "./components/ar-scene/ARScene";
+import ARScene, { ARSceneHandles } from "./components/ar-scene/ARScene";
 import "./App.scss";
+import { useRef, useEffect, useState } from "react";
+import { useLiveAPIContext } from "./contexts/LiveAPIContext";
+import ControlTray from "./components/control-tray/ControlTray";
 
 const API_KEY = process.env.REACT_APP_GEMINI_API_KEY as string;
 if (typeof API_KEY !== "string") {
@@ -33,19 +35,46 @@ function App() {
   return (
     <div className="App">
       <LiveAPIProvider options={apiOptions}>
-        <ARScene />
-        <div className="streaming-console">
-          <main>
-            <ControlTray
-              supportsVideo={false}
-              enableEditingSettings={true}
-            >
-              {/* put your own buttons here */}
-            </ControlTray>
-          </main>
-        </div>
+        <ARComponent />
       </LiveAPIProvider>
     </div>
+  );
+}
+
+function ARComponent() {
+  const arSceneRef = useRef<ARSceneHandles>(null);
+  const { client } = useLiveAPIContext();
+  const [sessionActive, setSessionActive] = useState(false);
+
+  useEffect(() => {
+    const handleContent = (data: any) => {
+      if (data.content) {
+        arSceneRef.current?.createHTMLWindow(data.content);
+      }
+    };
+
+    client.on("content", handleContent);
+
+    return () => {
+      client.off("content", handleContent);
+    };
+  }, [client]);
+
+  return (
+    <>
+      {!sessionActive && (
+        <div className="start-screen">
+          <h1>Welcome to JARVIS AR Assistant</h1>
+          <p>Click the button below to start AR experience.</p>
+        </div>
+      )}
+      <ARScene
+        ref={arSceneRef}
+        onSessionStart={() => setSessionActive(true)}
+        onSessionEnd={() => setSessionActive(false)}
+      />
+      <ControlTray supportsVideo={false} enableEditingSettings={true} />
+    </>
   );
 }
 
