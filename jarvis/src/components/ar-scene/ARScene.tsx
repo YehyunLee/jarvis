@@ -39,7 +39,7 @@ class ARWindow {
     this.titleBarTexture = null;
     this.htmlElement = null;
     this.isDraggable = true;
-    this.title = options.title || "AR Window";
+    this.title = options.title || "Double Tab & Drag";
     this.position = options.position || { x: 0, y: 0, z: -3 };
 
     this.init(scene);
