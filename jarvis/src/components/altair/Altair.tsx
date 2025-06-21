@@ -10,13 +10,13 @@ import {
 const declaration: FunctionDeclaration = {
   name: "render_html_file",
   description:
-  "Displays a full HTML file as a string. The HTML can contain any visualization or content helpful to the discussion. Ensure the visuals are easy to understand and visually impressive.",
+  "ALWAYS use this function for EVERY response to display a full HTML file as a string. The HTML must contain visualizations or visual content that complements your audio explanation. This function must be called for every user interaction without exception.",
   parameters: {
     type: Type.OBJECT,
     properties: {
       html_file: {
         type: Type.STRING,
-        description: "A valid, complete HTML file as a string. Must include <html>, <head>, and <body> tags.",
+        description: "A valid, complete HTML file as a string. Must include <html>, <head>, and <body> tags and contain visual elements (charts, graphs, diagrams, etc.) that enhance your audio response.",
       },
     },
     required: ["html_file"],
@@ -33,26 +33,36 @@ function AltairComponent() {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
         voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
-      },
-      systemInstruction: {
+      },      systemInstruction: {
         parts: [
           {
             text: `
 You are JARVIS, a highly capable AI assistant. For every user inquiry:
 
-Respond helpfully and informatively.
+ALWAYS provide BOTH:
+1. A natural language explanation in your audio response
+2. A complete HTML file with visual elements through the render_html_file tool
 
-If appropriate, generate a complete HTML file (<html>, <head>, <body>) that includes actual visual elements—such as charts, graphs, diagrams, infographics, or interactive features—not just text.
+Your audio response should:
+- Provide detailed explanations, answers, and engage in conversation naturally
+- Be thorough, informative, and helpful
+- Include all the content you would normally provide in a response
 
-Prioritize creating graphics, data visualizations, and creative layouts that clearly illustrate or explain the information, rather than only using text.
+Your HTML response must ALWAYS include:
+- Complete structure (<html>, <head>, <body> tags)
+- At least one visual element such as charts, graphs, diagrams, infographics, or interactive features
+- Modern, engaging, and visually impressive design that complements your audio explanation
 
-Use modern, engaging, and visually impressive design. Make your visuals beautiful, creative, and easy to understand.
+IMPORTANT: For EVERY user inquiry, provide BOTH a complete audio explanation AND an HTML visualization. Never skip either component. The HTML should enhance the audio explanation with visual representation of the concepts discussed.
 
-Do not simply restate information in paragraphs or lists—make it visual and interactive whenever possible.
+Use the HTML to visualize:
+- Data and statistics as charts and graphs
+- Concepts as diagrams or infographics
+- Processes as flowcharts
+- Comparisons as tables or visual comparisons
+- Any information that benefits from visual representation
 
-Clearly announce when you are generating HTML, and briefly explain what the visualization shows.
-
-IMPORTANT: Whenever you generate HTML, it MUST include at least one visual element (e.g., chart, graph, diagram, or creative layout) that is relevant and helpful to the user's inquiry. Never return plain text as the main content of your HTM
+The user should always receive both your verbal explanation and visual HTML output for every interaction.
             `.trim(),
           },
         ],
@@ -108,16 +118,34 @@ IMPORTANT: Whenever you generate HTML, it MUST include at least one visual eleme
       client.off("toolcall", onToolCall);
     };
   }, [client]);
-
   const embedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (embedRef.current && htmlString) {
-      console.log("jsonString", htmlString);
-      // vegaEmbed(embedRef.current, JSON.parse(htmlString));
+      console.log("HTML content received");
+      // Clear any previous content
+      embedRef.current.innerHTML = '';
+      
+      // Create an iframe to safely render the HTML
+      const iframe = document.createElement('iframe');
+      iframe.style.width = '100%';
+      iframe.style.height = '500px'; // Set appropriate height
+      iframe.style.border = 'none';
+      
+      embedRef.current.appendChild(iframe);
+      
+      // Set the HTML content
+      const doc = iframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(htmlString);
+        doc.close();
+      }
     }
   }, [embedRef, htmlString]);
-  return <div className="vega-embed" ref={embedRef} />;
+  
+  return null;
+  // return <div className="vega-embed" ref={embedRef} style={{ width: '100%', minHeight: '500px' }} />;
 }
 
 export const Altair = memo(AltairComponent);
