@@ -216,6 +216,42 @@ class ARWindow {
     };
   }
 
+  // Handle clicks on the content plane or iframe
+  handleClick(uv: THREE.Vector2) {
+    if (!this.htmlElement) return;
+    const x = Math.floor(uv.x * CONFIG.CONTENT_WIDTH);
+    const y = Math.floor((1 - uv.y) * CONFIG.CONTENT_HEIGHT);
+    if (this.htmlElement.tagName === 'IFRAME') {
+      const iframe = this.htmlElement as HTMLIFrameElement;
+      const element = iframe.contentWindow?.document.elementFromPoint(x, y);
+      if (element) (element as HTMLElement).click();
+    } else {
+      const origLeft = this.htmlElement.style.left;
+      const origTop = this.htmlElement.style.top;
+      this.htmlElement.style.left = '0px';
+      this.htmlElement.style.top = '0px';
+      const element = document.elementFromPoint(x, y);
+      if (element && this.htmlElement.contains(element)) {
+        (element as HTMLElement).click();
+        setTimeout(() => this.updateContent(), 100);
+      }
+      this.htmlElement.style.left = origLeft;
+      this.htmlElement.style.top = origTop;
+    }
+  }
+
+  // Handle click on title bar for closing or dragging
+  handleTitleBarClick(uv: THREE.Vector2): boolean {
+    const uvX = uv.x;
+    const start = (CONFIG.CONTENT_WIDTH - CONFIG.CLOSE_BUTTON_SIZE - 16) / CONFIG.CONTENT_WIDTH;
+    const end = (CONFIG.CONTENT_WIDTH - 16) / CONFIG.CONTENT_WIDTH;
+    if (uvX >= start && uvX <= end) {
+      this.destroy();
+      return true;
+    }
+    return false;
+  }
+
   destroy() {
     if (this.group.parent) {
       this.group.parent.remove(this.group);
@@ -304,6 +340,78 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     };
   }, []);
 
+  // Interaction handling
+  const handleInteraction = (intersection: THREE.Intersection, isPress: boolean) => {
+    const { object, uv } = intersection;
+    const { windowId, type } = object.userData as { windowId: string; type: string };
+    const windowObj = windowsRef.current.find(w => w.id === windowId);
+    if (!windowObj) return;
+    if (type === 'titlebar') {
+      if (!isPress) {
+        const wasClosed = windowObj.handleTitleBarClick(uv!);
+        if (!wasClosed && windowObj.isDraggable) {
+          startDrag(windowObj);
+        }
+      }
+    } else if (type === 'content' && !isPress) {
+      windowObj.handleClick(uv!);
+    }
+  };
+
+  const startDrag = (windowObj: ARWindow) => {
+    if (!rendererRef.current || !rendererRef.current.xr.isPresenting) return;
+    const dragState = dragStateRef.current;
+    dragState.isDragging = true;
+    dragState.draggedWindow = windowObj;
+    const controller = rendererRef.current.xr.getController(0);
+    const xrCamera = rendererRef.current.xr.getCamera();
+    const objectWorldPosition = new THREE.Vector3();
+    windowObj.group.getWorldPosition(objectWorldPosition);
+    const camDir = xrCamera.getWorldDirection(new THREE.Vector3());
+    const vecToCam = new THREE.Vector3().subVectors(objectWorldPosition, xrCamera.position);
+    dragState.dragDepth = vecToCam.dot(camDir);
+    dragState.dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), objectWorldPosition);
+    const raycaster = new THREE.Raycaster();
+    const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+    const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(new THREE.Matrix4().extractRotation(controller.matrixWorld));
+    raycaster.set(origin, direction);
+    const initialHit = new THREE.Vector3();
+    raycaster.ray.intersectPlane(dragState.dragPlane, initialHit);
+    dragState.dragOffset.subVectors(objectWorldPosition, initialHit);
+  };
+
+  const updateDrag = () => {
+    const dragState = dragStateRef.current;
+    if (!dragState.isDragging || !dragState.draggedWindow || !rendererRef.current) return;
+    const controller = rendererRef.current.xr.getController(0);
+    const xrCamera = rendererRef.current.xr.getCamera();
+    const targetPlaneAnchorPoint = xrCamera.position.clone().add(
+      xrCamera.getWorldDirection(new THREE.Vector3()).multiplyScalar(dragState.dragDepth)
+    );
+    dragState.dragPlane.setFromNormalAndCoplanarPoint(
+      xrCamera.getWorldDirection(new THREE.Vector3()).negate(),
+      targetPlaneAnchorPoint
+    );
+    const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+    const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(
+      new THREE.Matrix4().extractRotation(controller.matrixWorld)
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.set(origin, direction);
+    const currentHitOnPlane = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(dragState.dragPlane, currentHitOnPlane)) {
+      dragState.draggedWindow.group.position.copy(
+        currentHitOnPlane.add(dragState.dragOffset)
+      );
+    }
+  };
+
+  const endDrag = () => {
+    const dragState = dragStateRef.current;
+    dragState.isDragging = false;
+    dragState.draggedWindow = null;
+  };
+
   useEffect(() => {
     // Three.js setup
     if (typeof window === "undefined" || !mountRef.current) return;
@@ -336,7 +444,60 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     arButton.id = "ar-button";
     document.body.appendChild(arButton);
 
-    renderer.setAnimationLoop(() => renderer.render(scene, camera));
+    // Controller setup for interaction
+    const controller = renderer.xr.getController(0);
+    scene.add(controller);
+
+    const raycaster = new THREE.Raycaster();
+    let pressStartTime = 0;
+    const LONG_PRESS_DURATION = 200;
+
+    const onSelectStart = () => {
+      pressStartTime = Date.now();
+      if (!renderer.xr.isPresenting) return;
+      const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+      const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(
+        new THREE.Matrix4().extractRotation(controller.matrixWorld)
+      );
+      raycaster.set(origin, direction);
+      const allMeshes = windowsRef.current.flatMap(w => [w.contentMesh, w.titleBarMesh]).filter(m => m) as THREE.Mesh[];
+      const intersects = raycaster.intersectObjects(allMeshes, false);
+      if (intersects.length > 0) {
+        handleInteraction(intersects[0], true);
+      }
+    };
+
+    const onSelectEnd = () => {
+      const pressDuration = Date.now() - pressStartTime;
+      if (dragStateRef.current.isDragging) {
+        endDrag();
+        return;
+      }
+      if (pressDuration < LONG_PRESS_DURATION && renderer.xr.isPresenting) {
+        const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+        const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(
+          new THREE.Matrix4().extractRotation(controller.matrixWorld)
+        );
+        raycaster.set(origin, direction);
+        const allMeshes = windowsRef.current.flatMap(w => [w.contentMesh, w.titleBarMesh]).filter(m => m) as THREE.Mesh[];
+        const intersects = raycaster.intersectObjects(allMeshes, false);
+        if (intersects.length > 0) {
+          handleInteraction(intersects[0], false);
+        }
+      }
+    };
+
+    controller.addEventListener('selectstart', onSelectStart);
+    controller.addEventListener('selectend', onSelectEnd);
+
+    renderer.setAnimationLoop(() => {
+      updateDrag();
+      if (renderer.xr.isPresenting) {
+        const xrCamera = renderer.xr.getCamera();
+        windowsRef.current.forEach(w => w.group.lookAt(xrCamera.position));
+      }
+      renderer.render(scene, camera);
+    });
 
     return () => {
       if (document.body.contains(arButton)) {
