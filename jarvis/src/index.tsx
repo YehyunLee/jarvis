@@ -25,7 +25,11 @@ const root = ReactDOM.createRoot(
 );
 root.render(
   <React.StrictMode>
+      {/* <head> */}
+    {/* <script src="https://launchar.app/sdk/v1?key=PJgXQmJxosuaaA2fgWBU0O2b6G0pl9wj&redirect=true"></script> */}
+    {/* </head> */}
     <App />
+
   </React.StrictMode>
 );
 

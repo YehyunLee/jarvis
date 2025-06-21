@@ -47,6 +47,10 @@ function ARComponent() {
   const { client } = useLiveAPIContext();
   const [sessionActive, setSessionActive] = useState(false);
 
+
+
+
+  
   useEffect(() => {
     const handleContent = (data: any) => {
       if (data.content) {

@@ -437,7 +437,7 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     currentMount.appendChild(renderer.domElement);
 
     const arButton = ARButton.createButton(renderer, {
-      requiredFeatures: ['hit-test', 'dom-overlay'],
+      requiredFeatures: ['local', 'anchors', 'dom-overlay', 'hit-test'],
       optionalFeatures: ['local-floor'],
       domOverlay: { root: document.body }
     });
