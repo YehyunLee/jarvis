@@ -29,19 +29,22 @@ export type UseLiveAPIResults = {
   model: string;
   setModel: (model: string) => void;
   connected: boolean;
+  connecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   volume: number;
+  error: string | null;
 };
 
 export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
   const client = useMemo(() => new GenAILiveClient(options), [options]);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
 
-  const [model, setModel] = useState<string>("models/gemini-2.0-flash-exp");
-  const [config, setConfig] = useState<LiveConnectConfig>({});
+  const [model, setModel] = useState<string>("models/gemini-2.0-flash-exp");  const [config, setConfig] = useState<LiveConnectConfig>({});
   const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [volume, setVolume] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   // register audio for streaming server -> speakers
   useEffect(() => {
@@ -58,18 +61,18 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
       });
     }
   }, [audioStreamerRef]);
-
-  useEffect(() => {
-    const onOpen = () => {
+  useEffect(() => {    const onOpen = () => {
       setConnected(true);
-    };
-
-    const onClose = () => {
+      setConnecting(false);
+      setError(null); // Clear any previous errors
+    };    const onClose = () => {
       setConnected(false);
-    };
-
-    const onError = (error: ErrorEvent) => {
+      setConnecting(false);
+      // Note: We don't set an error here since it could be an intentional disconnect
+    };    const onError = (error: ErrorEvent) => {
       console.error("error", error);
+      setConnecting(false);
+      setError(error.message || "Connection failed");
     };
 
     const stopAudioStreamer = () => audioStreamerRef.current?.stop();
@@ -93,30 +96,36 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
         .off("audio", onAudio)
         .disconnect();
     };
-  }, [client]);
-
-  const connect = useCallback(async () => {
+  }, [client]);  const connect = useCallback(async () => {
     if (!config) {
       throw new Error("config has not been set");
     }
+    setError(null); // Clear any previous errors
+    setConnecting(true);
     client.disconnect();
-    await client.connect(model, config);
-  }, [client, config, model]);
-
-  const disconnect = useCallback(async () => {
+    try {
+      await client.connect(model, config);
+    } catch (error) {
+      setConnecting(false);
+      setError(error instanceof Error ? error.message : "Failed to connect");
+      throw error; // Re-throw so caller can handle it
+    }
+  }, [client, config, model]);  const disconnect = useCallback(async () => {
+    setConnecting(false);
     client.disconnect();
     setConnected(false);
-  }, [setConnected, client]);
-
-  return {
+    setError(null); // Clear any errors when disconnecting
+  }, [setConnected, client]);  return {
     client,
     config,
     setConfig,
     model,
     setModel,
     connected,
+    connecting,
     connect,
     disconnect,
     volume,
+    error,
   };
 }

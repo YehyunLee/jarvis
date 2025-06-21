@@ -97,6 +97,11 @@
     outline: 2px solid var(--Neutral-80);
   }
 
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   &:not(.connected) {
     background-color: var(--Blue-500);
     color: var(--Neutral-5);
@@ -133,12 +138,19 @@
       border: 1px solid var(--Neutral-30);
       background: var(--Neutral-5);
       padding: 10px;
-    }
-
-    .text-indicator {
+    }    .text-indicator {
       font-size: 11px;
       color: var(--Blue-500);
       user-select: none;
+    }
+
+    .error-indicator {
+      font-size: 10px;
+      color: var(--Red-500);
+      user-select: none;
+      text-align: center;
+      max-width: 150px;
+      word-wrap: break-word;
     }
 
     &:not(.connected) {

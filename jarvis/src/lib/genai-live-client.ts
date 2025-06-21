@@ -126,9 +126,7 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       onmessage: this.onmessage,
       onerror: this.onerror,
       onclose: this.onclose,
-    };
-
-    try {
+    };    try {
       this._session = await this.client.live.connect({
         model,
         config,
@@ -137,6 +135,25 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     } catch (e) {
       console.error("Error connecting to GenAI Live:", e);
       this._status = "disconnected";
+      
+      // Emit a more specific error message
+      let errorMessage = "Connection failed";
+      if (e instanceof Error) {
+        if (e.message.includes("API key")) {
+          errorMessage = "Invalid API key";
+        } else if (e.message.includes("network")) {
+          errorMessage = "Network error";
+        } else if (e.message.includes("quota")) {
+          errorMessage = "API quota exceeded";
+        } else if (e.message.includes("permission")) {
+          errorMessage = "Permission denied";
+        } else {
+          errorMessage = e.message || "Connection failed";
+        }
+      }
+      
+      // Emit error with the specific message
+      this.emit("error", new ErrorEvent("error", { message: errorMessage }));
       return false;
     }
 

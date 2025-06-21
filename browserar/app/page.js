@@ -38,6 +38,10 @@ export default function ARBrowser() {
   const [isArActive, setIsArActive] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // AI Speech Integration
+  const [isListening, setIsListening] = useState(false);
+  const [aiContent, setAiContent] = useState("");
+
   // Window class for better organization
   class ARWindow {
     constructor(id, options = {}) {
@@ -360,7 +364,7 @@ export default function ARBrowser() {
     await window.setHTMLContent(htmlContent);
     return window;
   };
-
+  
   const createIframeWindow = async (url, options = {}) => {
     const window = createWindow(options);
     await window.setIframeContent(url);
@@ -636,8 +640,9 @@ export default function ARBrowser() {
     overlayRef.current.innerHTML = `
       <div style="position: absolute; top: 20px; right: 20px; background: rgba(0, 0, 0, 0.8); color: white; padding: 20px; border-radius: 12px; min-width: 280px; backdrop-filter: blur(10px);">
         <h3 style="margin: 0 0 15px 0; color: #00bfff; text-align: center;">AR Browser Controls</h3>
-        
-        <div style="margin-bottom: 15px;">
+          <div style="margin-bottom: 15px;">          <button id="ai-speech" style="width: 100%; padding: 12px; margin-bottom: 8px; border: none; border-radius: 6px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 10px rgba(79, 70, 229, 0.3);">
+            🎤 Start AI Speech
+          </button>
           <button id="demo-html" style="width: 100%; padding: 10px; margin-bottom: 8px; border: none; border-radius: 6px; background: #4CAF50; color: white; font-weight: bold; cursor: pointer;">
             Create HTML Window
           </button>
@@ -658,13 +663,67 @@ export default function ARBrowser() {
           Tap × to close windows
         </div>
       </div>
-    `;
-
-    // Add event listeners
+    `;    // Add event listeners
+    const aiSpeechBtn = overlayRef.current.querySelector('#ai-speech');
     const demoHtmlBtn = overlayRef.current.querySelector('#demo-html');
     const demoIframeBtn = overlayRef.current.querySelector('#demo-iframe');
     const urlInput = overlayRef.current.querySelector('#url-input');
     const loadUrlBtn = overlayRef.current.querySelector('#load-url');
+
+    aiSpeechBtn.onclick = () => {
+      if (isListening) {
+        // Stop AI speech
+        setIsListening(false);
+        console.log('AI Speech stopped');
+        // Here you would stop the actual AI speech connection
+      } else {
+        // Start AI speech
+        setIsListening(true);
+        console.log('AI Speech started');
+        // Here you would start the actual AI speech connection
+        // For demo purposes, simulate an AI response after 3 seconds
+        setTimeout(() => {
+          const demoResponses = [
+            `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 15px; color: white;">
+              <h2 style="margin: 0 0 20px 0; text-align: center;">📊 Data Visualization</h2>
+              <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 15px 0;">
+                <canvas id="chart" width="400" height="200" style="background: white; border-radius: 5px;"></canvas>
+                <script>
+                  const canvas = document.getElementById('chart');
+                  const ctx = canvas.getContext('2d');
+                  ctx.fillStyle = '#4f46e5';
+                  for(let i = 0; i < 10; i++) {
+                    ctx.fillRect(i * 40, 200 - Math.random() * 150, 30, Math.random() * 150);
+                  }
+                </script>
+              </div>
+              <p>Here's a sample data visualization created by AI!</p>
+            </div>
+            `,
+            `
+            <div style="background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%); padding: 25px; border-radius: 15px; color: white;">
+              <h2 style="margin: 0 0 20px 0;">🧠 AI Analysis</h2>
+              <div style="background: rgba(255,255,255,0.9); color: #333; padding: 20px; border-radius: 10px; margin: 15px 0;">
+                <h3>Key Insights:</h3>
+                <ul style="line-height: 2;">
+                  <li>📈 Market trends showing 15% growth</li>
+                  <li>🎯 User engagement increased by 23%</li>
+                  <li>💡 3 optimization opportunities identified</li>
+                </ul>
+              </div>
+              <p>This analysis was generated using advanced AI algorithms.</p>
+            </div>
+            `,
+            "Hello! I'm your AI assistant. I can create interactive visualizations, charts, and helpful content for you in AR space. What would you like me to help you with today?"
+          ];
+          const randomResponse = demoResponses[Math.floor(Math.random() * demoResponses.length)];
+          handleAIResponse(randomResponse);
+          setIsListening(false);
+        }, 3000);
+      }      // Update button text
+      aiSpeechBtn.innerHTML = `🎤 ${!isListening ? 'Stop AI Speech' : 'Start AI Speech'}`;
+    };
 
     demoHtmlBtn.onclick = () => {
       const sampleHTML = `
@@ -715,18 +774,137 @@ export default function ARBrowser() {
     };
   };
 
-  // Expose functions globally for external use
+  // AI integration functions
+  const createARWindowFromAI = async (content, options = {}) => {
+    try {
+      let htmlContent;
+      
+      // Check if content is already HTML or plain text
+      if (typeof content === 'string') {
+        // Simple check to see if it's HTML
+        if (content.trim().startsWith('<') && content.trim().endsWith('>')) {
+          htmlContent = content;
+        } else {
+          // Wrap plain text in styled HTML
+          htmlContent = `
+            <div style="padding: 20px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; border-radius: 12px; height: 100%; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+              <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                <div style="width: 12px; height: 12px; background: #10b981; border-radius: 50%; margin-right: 8px; animation: pulse 2s infinite;"></div>
+                <h3 style="margin: 0; color: #f8fafc; font-size: 16px; font-weight: 600;">AI Response</h3>
+              </div>
+              <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);">
+                <p style="margin: 0; line-height: 1.6; font-size: 14px; color: #f1f5f9;">${content.replace(/\n/g, '<br>')}</p>
+              </div>
+              <div style="margin-top: 15px; font-size: 11px; color: rgba(255,255,255,0.6); text-align: right;">
+                Generated at ${new Date().toLocaleTimeString()}
+              </div>
+              <style>
+                @keyframes pulse {
+                  0%, 100% { opacity: 1; }
+                  50% { opacity: 0.5; }
+                }
+              </style>
+            </div>
+          `;
+        }
+      } else {
+        // Handle other types (objects, etc.)
+        htmlContent = `
+          <div style="padding: 20px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; border-radius: 12px; height: 100%; box-sizing: border-box;">
+            <h3 style="margin: 0 0 15px 0; color: #f8fafc;">AI Response</h3>
+            <pre style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; white-space: pre-wrap; font-size: 12px; color: #f1f5f9; margin: 0;">${JSON.stringify(content, null, 2)}</pre>
+          </div>
+        `;
+      }
+
+      // Create AR window with AI-specific defaults
+      const windowOptions = {
+        title: options.title || "AI Speech",
+        position: options.position || { 
+          x: Math.random() * 2 - 1, 
+          y: Math.random() * 1 - 0.5, 
+          z: -3 
+        },
+        ...options
+      };
+
+      const window = await createHTMLWindow(htmlContent, windowOptions);
+      
+      // Optional: Auto-update content periodically if it's dynamic
+      if (options.autoUpdate) {
+        const updateInterval = setInterval(async () => {
+          if (windowsRef.current.includes(window)) {
+            await window.updateContent();
+          } else {
+            clearInterval(updateInterval);
+          }
+        }, options.updateInterval || 5000);
+      }
+
+      return window;
+    } catch (error) {
+      console.error("Error creating AR window from AI content:", error);
+      
+      // Fallback error window
+      const errorHTML = `
+        <div style="padding: 20px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; border-radius: 12px; height: 100%; box-sizing: border-box;">
+          <h3 style="margin: 0 0 15px 0; color: #fef2f2;">Error</h3>
+          <p style="margin: 0; color: #fecaca;">Failed to display AI content: ${error.message}</p>
+        </div>
+      `;
+      
+      return await createHTMLWindow(errorHTML, { 
+        title: "Error", 
+        position: options.position || { x: 0, y: 0, z: -3 } 
+      });
+    }
+  };
+  // Handler for AI speech events and responses
+  const handleAIResponse = async (responseText, options = {}) => {
+    // Check if response contains HTML
+    if (responseText.includes('<') && responseText.includes('>')) {
+      await createARWindowFromAI(responseText, "AI Visualization");
+    } else {
+      // Convert plain text to HTML
+      const htmlResponse = `
+        <div style="background: rgba(255,255,255,0.95); padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+          <div style="display: flex; align-items: center; margin-bottom: 15px;">
+            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #4f46e5, #7c3aed); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 20px;">🤖</div>
+            <h3 style="margin: 0; color: #1f2937; font-size: 18px;">AI Assistant Response</h3>
+          </div>
+          <div style="color: #374151; line-height: 1.6; font-size: 14px;">
+            ${responseText.replace(/\n/g, '<br>')}
+          </div>
+          <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: right;">
+            Generated at ${new Date().toLocaleTimeString()}
+          </div>
+        </div>
+      `;
+      await createARWindowFromAI(htmlResponse, "AI Response");
+    }
+  };  // Expose functions globally for external access (like from Jarvis)
   useEffect(() => {
-    window.createARHTMLWindow = createHTMLWindow;
-    window.createARIframeWindow = createIframeWindow;
-    window.getARWindow = getWindowById;
+    // Make functions available globally
+    window.createARWindowFromAI = createARWindowFromAI;
+    window.handleAIResponse = handleAIResponse;
+    window.createHTMLWindow = createHTMLWindow;
+    window.createIframeWindow = createIframeWindow;
     
+    console.log("AR Browser functions exposed globally:", {
+      createARWindowFromAI: !!window.createARWindowFromAI,
+      handleAIResponse: !!window.handleAIResponse,
+      createHTMLWindow: !!window.createHTMLWindow,
+      createIframeWindow: !!window.createIframeWindow
+    });
+
+    // Cleanup
     return () => {
-      delete window.createARHTMLWindow;
-      delete window.createARIframeWindow;
-      delete window.getARWindow;
+      delete window.createARWindowFromAI;
+      delete window.handleAIResponse;
+      delete window.createHTMLWindow;
+      delete window.createIframeWindow;
     };
-  }, []);
+  }, [createARWindowFromAI, handleAIResponse, createHTMLWindow, createIframeWindow]);
 
   return (
     <>

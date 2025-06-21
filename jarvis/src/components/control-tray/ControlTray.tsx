@@ -73,9 +73,7 @@ function ControlTray({
   const [audioRecorder] = useState(() => new AudioRecorder());
   const [muted, setMuted] = useState(false);
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
-  const connectButtonRef = useRef<HTMLButtonElement>(null);
-
-  const { client, connected, connect, disconnect, volume } =
+  const connectButtonRef = useRef<HTMLButtonElement>(null);  const { client, connected, connecting, connect, disconnect, volume, error } =
     useLiveAPIContext();
 
   useEffect(() => {
@@ -142,8 +140,7 @@ function ControlTray({
     }
     return () => {
       clearTimeout(timeoutId);
-    };
-  }, [connected, activeVideoStream, client, videoRef]);
+    };  }, [connected, activeVideoStream, client, videoRef]);
 
   //handler for swapping from one video-stream to the next
   const changeStreams = (next?: UseMediaStreamResult) => async () => {
@@ -157,6 +154,19 @@ function ControlTray({
     }
 
     videoStreams.filter((msr) => msr !== next).forEach((msr) => msr.stop());
+  };
+
+  const handleConnectionToggle = async () => {
+    try {
+      if (connected) {
+        await disconnect();
+      } else {
+        await connect();
+      }
+    } catch (error) {
+      console.error("Connection error:", error);
+      // Error is already handled in the hook, just log it here
+    }
   };
 
   return (
@@ -200,18 +210,21 @@ function ControlTray({
       </nav>
 
       <div className={cn("connection-container", { connected })}>
-        <div className="connection-button-container">
-          <button
+        <div className="connection-button-container">          <button
             ref={connectButtonRef}
             className={cn("action-button connect-toggle", { connected })}
-            onClick={connected ? disconnect : connect}
-          >
-            <span className="material-symbols-outlined filled">
-              {connected ? "pause" : "play_arrow"}
+            onClick={handleConnectionToggle}
+            disabled={connecting}
+          >            <span className="material-symbols-outlined filled">
+              {connecting ? "hourglass_empty" : connected ? "pause" : "play_arrow"}
             </span>
-          </button>
-        </div>
+          </button>        </div>
         <span className="text-indicator">Streaming</span>
+        {error && (
+          <span className="error-indicator" style={{ color: "var(--Red-500)", fontSize: "10px", textAlign: "center" }}>
+            {error}
+          </span>
+        )}
       </div>
       {enableEditingSettings ? <SettingsDialog /> : ""}
     </section>

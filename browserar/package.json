@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google/genai": "^1.6.0",
     "html2canvas": "^1.4.1",
     "next": "15.3.4",
     "ngrok": "^5.0.0-beta.2",
