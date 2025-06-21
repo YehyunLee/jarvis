@@ -47,147 +47,143 @@ const ARWindow = class {
   init(scene: THREE.Scene) {
     this.group.position.set(this.position.x, this.position.y, this.position.z);
     this.createContentPlane();
-    this.createTitleBar();
     scene.add(this.group);
   }
 
   createContentPlane() {
-    // Invisible plane for raycast interactions
-    const geometry = new THREE.PlaneGeometry(CONFIG.PLANE_WIDTH, CONFIG.PLANE_HEIGHT);
+    // Invisible plane for raycast interactions covering title + content
+    const totalHeight = CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS;
+    const geometry = new THREE.PlaneGeometry(CONFIG.PLANE_WIDTH, totalHeight);
     const material = new THREE.MeshBasicMaterial({
       transparent: true,
       opacity: 0,
       side: THREE.DoubleSide,
     });
 
-    this.contentMesh = new THREE.Mesh(
-      geometry,
-      material,
-    );
-    this.contentMesh.position.y = -(CONFIG.TITLE_BAR_HEIGHT_UNITS / 2);
-    this.contentMesh.userData = { windowId: this.id, type: 'content' };
+    this.contentMesh = new THREE.Mesh(geometry, material);
+    // Offset so top of plane aligns with title bar top
+    this.contentMesh.position.y = -CONFIG.TITLE_BAR_HEIGHT_UNITS / 2;
+    this.contentMesh.userData = { windowId: this.id, type: 'window' };
     this.group.add(this.contentMesh);
   }
 
-  createTitleBar() {
-    const canvas = document.createElement("canvas");
-    canvas.width = CONFIG.CONTENT_WIDTH;
-    canvas.height = CONFIG.TITLE_BAR_HEIGHT_PX;
-
-    this.titleBarTexture = new THREE.CanvasTexture(canvas);
-    this.titleBarTexture.minFilter = THREE.LinearFilter;
-    this.titleBarTexture.magFilter = THREE.LinearFilter;
-
-    const geometry = new THREE.PlaneGeometry(CONFIG.PLANE_WIDTH, CONFIG.TITLE_BAR_HEIGHT_UNITS);
-    const material = new THREE.MeshBasicMaterial({
-      map: this.titleBarTexture,
-      side: THREE.DoubleSide,
-      transparent: true,
-    });
-
-    this.titleBarMesh = new THREE.Mesh(geometry, material);
-    this.titleBarMesh.position.y = CONFIG.PLANE_HEIGHT / 2;
-    this.titleBarMesh.userData = { windowId: this.id, type: 'titlebar' };
-    this.group.add(this.titleBarMesh);
-
-    this.drawTitleBar();
-  }
-
-  drawTitleBar() {
-    if (!this.titleBarTexture) return;
-    const canvas = this.titleBarTexture.image;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, "rgba(30, 30, 40, 0.95)");
-    gradient.addColorStop(1, "rgba(15, 15, 25, 0.95)");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.strokeStyle = "rgba(100, 150, 255, 0.3)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, canvas.width, canvas.height);
-
-    const closeX = canvas.width - CONFIG.CLOSE_BUTTON_SIZE / 2 - 8;
-    const closeY = canvas.height / 2;
-
-    ctx.fillStyle = "rgba(255, 100, 100, 0.8)";
-    ctx.beginPath();
-    ctx.arc(closeX, closeY, CONFIG.CLOSE_BUTTON_SIZE / 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "white";
-    ctx.font = `bold ${CONFIG.CLOSE_BUTTON_SIZE * 0.4}px Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("×", closeX, closeY);
-
-    ctx.shadowColor = "rgba(100, 150, 255, 0.5)";
-    ctx.shadowBlur = 10;
-    ctx.fillStyle = "rgba(200, 220, 255, 0.95)";
-    ctx.font = `bold ${CONFIG.TITLE_BAR_HEIGHT_PX * 0.35}px Arial`;
-    ctx.textAlign = "left";
-    ctx.fillText(this.title, 15, canvas.height / 2);
-    ctx.shadowBlur = 0;
-
-    this.titleBarTexture.needsUpdate = true;
-  }
-
   async setHTMLContent(htmlContent: string) {
-    // Remove old CSS3DObject if present
     if (this.cssObject) {
       this.group.remove(this.cssObject);
       this.cssObject = null;
     }
-    // Create interactive DOM container
-    const div = document.createElement('div');
-    div.style.width = `${CONFIG.CONTENT_WIDTH}px`;
-    div.style.height = `${CONFIG.CONTENT_HEIGHT}px`;
-    div.style.overflow = 'auto';
-    div.style.background = 'white';
-    div.innerHTML = htmlContent;
-    // Wrap as CSS3DObject
-    const cssObj = new CSS3DObject(div);
+    // Create combined container with title bar and content
+    const container = document.createElement('div');
+    container.style.width = `${CONFIG.CONTENT_WIDTH}px`;
+    container.style.height = `${CONFIG.CONTENT_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_PX}px`;
+    container.style.overflow = 'hidden';
+    container.style.background = 'white';
+    // Title bar
+    const titleDiv = document.createElement('div');
+    titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
+    titleDiv.style.background = 'linear-gradient(180deg, #1e1e28, #0f0f19)';
+    titleDiv.style.color = 'white';
+    titleDiv.style.font = `bold ${CONFIG.TITLE_BAR_HEIGHT_PX * 0.35}px Arial`;
+    titleDiv.style.padding = '0 10px';
+    titleDiv.textContent = this.title;
+    // Add close button UI
+    titleDiv.style.position = 'relative';
+    const closeBtn = document.createElement('span');
+    closeBtn.textContent = '×';
+    closeBtn.style.position = 'absolute';
+    closeBtn.style.right = '8px';
+    closeBtn.style.top = '50%';
+    closeBtn.style.transform = 'translateY(-50%)';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.style.fontSize = `${CONFIG.CLOSE_BUTTON_SIZE * 0.6}px`;
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.destroy();
+    });
+    titleDiv.appendChild(closeBtn);
+    container.appendChild(titleDiv);
+    // Content area
+    const contentDiv = document.createElement('div');
+    contentDiv.style.height = `${CONFIG.CONTENT_HEIGHT}px`;
+    // Allow both vertical and horizontal scrolling
+    contentDiv.style.overflow = 'auto';
+    contentDiv.style.overflowX = 'auto';
+    contentDiv.style.overflowY = 'auto';
+    // Ensure content can extend horizontally if needed
+    contentDiv.style.whiteSpace = 'pre';
+    contentDiv.innerHTML = htmlContent;
+    container.appendChild(contentDiv);
+    const cssObj = new CSS3DObject(container);
     // Position to align with content plane
     cssObj.position.copy(this.contentMesh!.position);
+    // Scale container px to world units
     cssObj.scale.set(
       CONFIG.PLANE_WIDTH / CONFIG.CONTENT_WIDTH,
-      CONFIG.PLANE_HEIGHT / CONFIG.CONTENT_HEIGHT,
+      (CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS) / (CONFIG.CONTENT_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_PX),
       1
     );
-    // Nudge forward slightly so it renders on top of the title bar mesh
+    // Nudge forward slightly so it renders on top
     cssObj.position.z += 0.001;
 
     this.group.add(cssObj);
     this.cssObject = cssObj;
-    this.htmlElement = div;
+    this.htmlElement = container;
   }
 
   async setIframeContent(url: string) {
-    // Remove old CSS3DObject if present
+    // Similar to HTML content, wrap in container
     if (this.cssObject) {
       this.group.remove(this.cssObject);
       this.cssObject = null;
     }
+    const container = document.createElement('div');
+    container.style.width = `${CONFIG.CONTENT_WIDTH}px`;
+    container.style.height = `${CONFIG.CONTENT_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_PX}px`;
+    container.style.overflow = 'hidden';
+    container.style.background = 'white';
+    const titleDiv = document.createElement('div');
+    titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
+    titleDiv.style.background = 'linear-gradient(180deg, #1e1e28, #0f0f19)';
+    titleDiv.style.color = 'white';
+    titleDiv.style.font = `bold ${CONFIG.TITLE_BAR_HEIGHT_PX * 0.35}px Arial`;
+    titleDiv.style.padding = '0 10px';
+    titleDiv.textContent = this.title;
+    // Add close button UI
+    titleDiv.style.position = 'relative';
+    const closeBtn2 = document.createElement('span');
+    closeBtn2.textContent = '×';
+    closeBtn2.style.position = 'absolute';
+    closeBtn2.style.right = '8px';
+    closeBtn2.style.top = '50%';
+    closeBtn2.style.transform = 'translateY(-50%)';
+    closeBtn2.style.cursor = 'pointer';
+    closeBtn2.style.fontSize = `${CONFIG.CLOSE_BUTTON_SIZE * 0.6}px`;
+    closeBtn2.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.destroy();
+    });
+    titleDiv.appendChild(closeBtn2);
+    container.appendChild(titleDiv);
     const iframe = document.createElement('iframe');
     iframe.src = url;
     iframe.style.width = `${CONFIG.CONTENT_WIDTH}px`;
     iframe.style.height = `${CONFIG.CONTENT_HEIGHT}px`;
     iframe.style.border = 'none';
-    const cssObj = new CSS3DObject(iframe);
+    const contentWrapper = document.createElement('div');
+    contentWrapper.appendChild(iframe);
+    container.appendChild(contentWrapper);
+    const cssObj = new CSS3DObject(container);
     cssObj.position.copy(this.contentMesh!.position);
     cssObj.scale.set(
       CONFIG.PLANE_WIDTH / CONFIG.CONTENT_WIDTH,
-      CONFIG.PLANE_HEIGHT / CONFIG.CONTENT_HEIGHT,
+      (CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS) / (CONFIG.CONTENT_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_PX),
       1
     );
-    // Nudge forward slightly so it renders on top of the title bar mesh
     cssObj.position.z += 0.001;
 
     this.group.add(cssObj);
     this.cssObject = cssObj;
-    this.htmlElement = iframe;
+    this.htmlElement = container;
   }
 
   // No-op updateContent for interactive CSS3D mode (exists for compatibility)
@@ -406,6 +402,25 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     if (!dragState.isDragging || !dragState.draggedWindow || !rendererRef.current) return;
     const controller = rendererRef.current.xr.getController(0);
     const xrCamera = rendererRef.current.xr.getCamera();
+    // Check if pointer still over title-bar region; otherwise cancel drag
+    const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+    const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(
+      new THREE.Matrix4().extractRotation(controller.matrixWorld)
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.set(origin, direction);
+    // Raycast against the same plane for dragging
+    const hit = raycaster.intersectObject(dragState.draggedWindow.contentMesh!, false)[0];
+    if (hit && hit.uv) {
+      const totalUnits = CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS;
+      const titleUVThreshold = CONFIG.TITLE_BAR_HEIGHT_UNITS / totalUnits;
+      // If pointer leaves title-bar area, end drag
+      if (hit.uv.y < 1 - titleUVThreshold) {
+        endDrag();
+        return;
+      }
+    }
+    // Continue updating drag plane
     const targetPlaneAnchorPoint = xrCamera.position.clone().add(
       xrCamera.getWorldDirection(new THREE.Vector3()).multiplyScalar(dragState.dragDepth)
     );
@@ -413,14 +428,14 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
       xrCamera.getWorldDirection(new THREE.Vector3()).negate(),
       targetPlaneAnchorPoint
     );
-    const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
-    const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(
+    const origin2 = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+    const direction2 = new THREE.Vector3(0, 0, -1).applyMatrix4(
       new THREE.Matrix4().extractRotation(controller.matrixWorld)
     );
-    const raycaster = new THREE.Raycaster();
-    raycaster.set(origin, direction);
+    const raycaster2 = new THREE.Raycaster();
+    raycaster2.set(origin2, direction2);
     const currentHitOnPlane = new THREE.Vector3();
-    if (raycaster.ray.intersectPlane(dragState.dragPlane, currentHitOnPlane)) {
+    if (raycaster2.ray.intersectPlane(dragState.dragPlane, currentHitOnPlane)) {
       dragState.draggedWindow.group.position.copy(
         currentHitOnPlane.add(dragState.dragOffset)
       );
@@ -486,34 +501,67 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     const onSelectStart = () => {
       pressStartTime = Date.now();
       if (!renderer.xr.isPresenting) return;
-      const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+      // Raycast against all window planes
+      const controllerMatrix = controller.matrixWorld;
+      const origin = new THREE.Vector3().setFromMatrixPosition(controllerMatrix);
       const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(
-        new THREE.Matrix4().extractRotation(controller.matrixWorld)
+        new THREE.Matrix4().extractRotation(controllerMatrix)
       );
       raycaster.set(origin, direction);
-      const allMeshes = windowsRef.current.flatMap(w => [w.contentMesh, w.titleBarMesh]).filter(m => m) as THREE.Mesh[];
-      const intersects = raycaster.intersectObjects(allMeshes, false);
-      if (intersects.length > 0) {
-        handleInteraction(intersects[0], true);
+      const allPlanes = windowsRef.current.map(w => w.contentMesh!).filter(Boolean) as THREE.Mesh[];
+      const hits = raycaster.intersectObjects(allPlanes, false);
+      if (!hits.length) return;
+      const hit = hits[0];
+      const windowId = hit.object.userData.windowId as string;
+      const uv = hit.uv;
+      if (!uv) return;
+      const windowObj = windowsRef.current.find(w => w.id === windowId);
+      if (!windowObj) return;
+      const totalUnits = CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS;
+      const titleUVThreshold = CONFIG.TITLE_BAR_HEIGHT_UNITS / totalUnits;
+      // If within title bar region
+      if (uv.y >= 1 - titleUVThreshold) {
+        startDrag(windowObj);
       }
     };
 
     const onSelectEnd = () => {
-      const pressDuration = Date.now() - pressStartTime;
       if (dragStateRef.current.isDragging) {
         endDrag();
         return;
       }
+      const pressDuration = Date.now() - pressStartTime;
       if (pressDuration < LONG_PRESS_DURATION && renderer.xr.isPresenting) {
-        const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+        // Raycast to detect short tap for close
+        const controllerMatrix = controller.matrixWorld;
+        const origin = new THREE.Vector3().setFromMatrixPosition(controllerMatrix);
         const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(
-          new THREE.Matrix4().extractRotation(controller.matrixWorld)
+          new THREE.Matrix4().extractRotation(controllerMatrix)
         );
         raycaster.set(origin, direction);
-        const allMeshes = windowsRef.current.flatMap(w => [w.contentMesh, w.titleBarMesh]).filter(m => m) as THREE.Mesh[];
-        const intersects = raycaster.intersectObjects(allMeshes, false);
-        if (intersects.length > 0) {
-          handleInteraction(intersects[0], false);
+        const allPlanes = windowsRef.current.map(w => w.contentMesh!).filter(Boolean) as THREE.Mesh[];
+        const hits = raycaster.intersectObjects(allPlanes, false);
+        if (!hits.length) return;
+        const hit = hits[0];
+        const uv = hit.uv;
+        const object = hit.object;
+        if (!uv) return;
+        const windowId = object.userData.windowId as string;
+        const windowObj = windowsRef.current.find(w => w.id === windowId);
+        if (!windowObj) return;
+        const totalUnits = CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS;
+        const titleUVThreshold = CONFIG.TITLE_BAR_HEIGHT_UNITS / totalUnits;
+        // If tap in close region within title bar
+        if (uv.y >= 1 - titleUVThreshold) {
+          const startPx = CONFIG.CONTENT_WIDTH - CONFIG.CLOSE_BUTTON_SIZE - 16;
+          const endPx = CONFIG.CONTENT_WIDTH - 16;
+          const uvX = uv.x;
+          const startUV = startPx / CONFIG.CONTENT_WIDTH;
+          const endUV = endPx / CONFIG.CONTENT_WIDTH;
+          if (uvX >= startUV && uvX <= endUV) {
+            windowObj.destroy();
+            windowsRef.current = windowsRef.current.filter(w => w !== windowObj);
+          }
         }
       }
     };
