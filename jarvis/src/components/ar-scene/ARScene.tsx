@@ -301,14 +301,17 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     // Determine base camera for positioning
     let cam: THREE.Camera | null = null;
     if (rendererRef.current) {
-      try { cam = (rendererRef.current.xr.getCamera as any)(); } catch { cam = cameraRef.current; }
+      try {
+        cam = rendererRef.current.xr.getCamera();
+      } catch {
+        cam = cameraRef.current;
+      }
     } else {
       cam = cameraRef.current;
     }
     // Default position fallback
     let pos = options.position || new THREE.Vector3(0, 0, -3);
     if (cam) {
-      // World camera position
       const camPos = new THREE.Vector3();
       cam.getWorldPosition(camPos);
       // Use horizontal gaze direction
@@ -316,12 +319,21 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
       cam.getWorldDirection(gaze);
       gaze.y = 0;
       gaze.normalize();
-      // Angular offset per existing window
-      const angleOffset = windowsRef.current.length * (Math.PI / 6);
+      // Compute angle offsets: first window straight ahead, then alternate left/right
+      const idx = windowsRef.current.length;
+      const step = Math.PI / 8; // 22.5°
+      let angleOffset = 0;
+      if (idx > 0) {
+        const tier = Math.min(Math.ceil(idx / 2), 2); // max 2 tiers => ±45°
+        const sign = idx % 2 === 1 ? 1 : -1;
+        angleOffset = sign * tier * step;
+      }
       gaze.applyAxisAngle(new THREE.Vector3(0, 1, 0), angleOffset);
-      const distance = 2; // meters in front
+      // Place a fixed distance in front
+      const distance = 2;
       pos = camPos.clone().add(gaze.multiplyScalar(distance));
-      pos.y = camPos.y - 0.2; // slight below eye height
+      // Slightly below eye height
+      pos.y = camPos.y - 0.2;
     }
     const id = `window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const win = new ARWindow(id, scene, { ...options, position: pos });
