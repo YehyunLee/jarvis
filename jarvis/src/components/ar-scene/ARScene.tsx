@@ -431,18 +431,13 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     );
     const raycaster = new THREE.Raycaster();
     raycaster.set(origin, direction);
-    // Raycast against the same plane for dragging
-    const hit = raycaster.intersectObject(dragState.draggedWindow.contentMesh!, false)[0];
-    // Temporarily disable title-bar region limit so user can drag at any angle
-    // Original code removed that ended drag when pointer left title bar region
-    // if (hit && hit.uv) {
-    //   const totalUnits = CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS;
-    //   const titleUVThreshold = CONFIG.TITLE_BAR_HEIGHT_UNITS / totalUnits;
-    //   if (hit.uv.y < 1 - titleUVThreshold) {
-    //     endDrag();
-    //     return;
-    //   }
-    // }
+    // Raycast against the window to see if we've "let go"
+    const intersects = raycaster.intersectObject(dragState.draggedWindow.contentMesh!, false);
+    if (intersects.length === 0) {
+      endDrag();
+      return;
+    }
+
     // Continue updating drag plane
     const targetPlaneAnchorPoint = xrCamera.position.clone().add(
       xrCamera.getWorldDirection(new THREE.Vector3()).multiplyScalar(dragState.dragDepth)
