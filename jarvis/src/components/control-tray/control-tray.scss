@@ -105,7 +105,7 @@
 
 .control-tray {
   position: absolute;
-  bottom: 0;
+  bottom: 80px; // raised above AR start button
   left: 50%;
   transform: translate(-50%, 0);
   display: inline-flex;

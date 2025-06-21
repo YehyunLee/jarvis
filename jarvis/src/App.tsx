@@ -64,7 +64,22 @@ function ARComponent() {
   return (
     <>
       {!sessionActive && (
-        <div className="start-screen">
+        <div
+          className="start-screen"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            zIndex: 10,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.7)",
+          }}
+        >
           <h1>Welcome to JARVIS AR Assistant</h1>
           <p>Click the button below to start AR experience.</p>
         </div>
@@ -74,7 +89,21 @@ function ARComponent() {
         onSessionStart={() => setSessionActive(true)}
         onSessionEnd={() => setSessionActive(false)}
       />
-      <ControlTray supportsVideo={false} enableEditingSettings={true} />
+      {sessionActive && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 80,
+            left: 0,
+            width: "100vw",
+            zIndex: 20,
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <ControlTray supportsVideo={false} enableEditingSettings={true} />
+        </div>
+      )}
       <Altair /> {/* Mount Altair to handle HTML tool calls */}
     </>
   );

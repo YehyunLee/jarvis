@@ -349,6 +349,23 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!rendererRef.current) return;
+    const renderer = rendererRef.current;
+    const onStart = () => {
+      props.onSessionStart?.();
+    };
+    const onEnd = () => {
+      props.onSessionEnd?.();
+    };
+    renderer.xr.addEventListener('sessionstart', onStart);
+    renderer.xr.addEventListener('sessionend', onEnd);
+    return () => {
+      renderer.xr.removeEventListener('sessionstart', onStart);
+      renderer.xr.removeEventListener('sessionend', onEnd);
+    };
+  }, [props.onSessionStart, props.onSessionEnd]);
+
   return (
     <div className="ar-scene-wrapper">
       {/* Video background streams only during AR session */}

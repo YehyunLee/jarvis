@@ -78,6 +78,13 @@ function ControlTray({
   const { client, connected, connect, disconnect, volume } =
     useLiveAPIContext();
 
+  // Auto-connect on mount if not already connected
+  useEffect(() => {
+    if (!connected) {
+      connect();
+    }
+  }, [connected, connect]);
+
   useEffect(() => {
     if (!connected && connectButtonRef.current) {
       connectButtonRef.current.focus();
