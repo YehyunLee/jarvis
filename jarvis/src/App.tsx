@@ -77,11 +77,71 @@ function ARComponent() {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            background: "rgba(0,0,0,0.7)",
+            background:
+              "radial-gradient(ellipse at 50% 30%, #1a0033 0%, #0f0020 70%, #000 100%)",
+            boxShadow: "0 0 120px 40px #00fff7, 0 0 200px 80px #ff00ea",
+            overflow: "hidden",
           }}
         >
-          <h1>Welcome to JARVIS AR Assistant</h1>
-          <p>Click the button below to start AR experience.</p>
+          <h1
+            style={{
+              fontFamily: 'Orbitron, "Space Mono", monospace',
+              fontWeight: 900,
+              fontSize: "2.8rem",
+              color: "#00fff7",
+              textShadow:
+                "0 0 16px #00fff7, 0 0 32px #ff00ea, 0 0 2px #fff, 0 0 1px #fff",
+              letterSpacing: "0.08em",
+              marginBottom: 24,
+              textAlign: "center",
+              filter: "drop-shadow(0 0 8px #ff00ea)",
+            }}
+          >
+            WELCOME TO{" "}
+            <span style={{ color: "#ff00ea" }}>JARVIS AR ASSISTANT</span>
+          </h1>
+          <p
+            style={{
+              color: "#fff",
+              fontSize: "1.3rem",
+              background:
+                "linear-gradient(90deg, #00fff7 0%, #ff00ea 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              textShadow: "0 0 8px #00fff7, 0 0 12px #ff00ea",
+              marginBottom: 40,
+              textAlign: "center",
+              fontWeight: 600,
+            }}
+          >
+            Click the{" "}
+            <span style={{ color: "#ff00ea", fontWeight: 700 }}>AR START</span>{" "}
+            button below to begin your immersive experience.
+          </p>
+          <div
+            style={{
+              width: 220,
+              height: 4,
+              background:
+                "linear-gradient(90deg, #00fff7 0%, #ff00ea 100%)",
+              borderRadius: 2,
+              margin: "0 auto 32px auto",
+              boxShadow: "0 0 16px #00fff7, 0 0 24px #ff00ea",
+            }}
+          />
+          <span
+            style={{
+              color: "#fff",
+              fontSize: "1.1rem",
+              opacity: 0.7,
+              letterSpacing: "0.04em",
+              marginTop: 12,
+              textAlign: "center",
+              textShadow: "0 0 8px #00fff7",
+            }}
+          >
+            Powered by Gemini AI · 2025
+          </span>
         </div>
       )}
       <ARScene
