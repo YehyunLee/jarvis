@@ -38,7 +38,7 @@ const ARWindow = class {
     this.titleBarMesh = null;
     this.titleBarTexture = null;
     this.htmlElement = null;
-    this.isDraggable = true;
+    this.isDraggable = options.draggable !== undefined ? options.draggable : true;
     this.title = options.title || "Double Tab & Drag";
     this.position = options.position || { x: 0, y: 0, z: -3 };
 
@@ -79,11 +79,14 @@ const ARWindow = class {
     container.style.height = `${CONFIG.CONTENT_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_PX}px`;
     container.style.overflow = 'hidden';
     container.style.background = 'white';
+    container.style.borderRadius = '8px';
+    container.style.filter = 'drop-shadow(0 0 10px rgba(0, 255, 234, 0.7))';
     // Title bar
     const titleDiv = document.createElement('div');
     titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
-    // Jarvis-style neon header
-    titleDiv.style.background = 'rgba(10, 10, 20, 0.8)';
+    // Jarvis neon gradient header
+    titleDiv.style.background = 'linear-gradient(90deg, rgba(10,10,20,0.9), rgba(20,20,40,0.9))';
+    titleDiv.style.borderTop = '2px solid #00FFEA';
     titleDiv.style.borderBottom = '2px solid #00FFEA';
     titleDiv.style.boxShadow = '0 0 12px #00FFEA, inset 0 -1px 4px rgba(0,255,234,0.7)';
     titleDiv.style.color = '#00FFEA';
@@ -168,10 +171,13 @@ const ARWindow = class {
     container.style.height = `${CONFIG.CONTENT_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_PX}px`;
     container.style.overflow = 'hidden';
     container.style.background = 'white';
+    container.style.borderRadius = '8px';
+    container.style.filter = 'drop-shadow(0 0 10px rgba(0, 255, 234, 0.7))';
     const titleDiv = document.createElement('div');
     titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
     // Jarvis-style neon header
-    titleDiv.style.background = 'rgba(10, 10, 20, 0.8)';
+    titleDiv.style.background = 'linear-gradient(90deg, rgba(10,10,20,0.9), rgba(20,20,40,0.9))';
+    titleDiv.style.borderTop = '2px solid #00FFEA';
     titleDiv.style.borderBottom = '2px solid #00FFEA';
     titleDiv.style.boxShadow = '0 0 12px #00FFEA, inset 0 -1px 4px rgba(0,255,234,0.7)';
     titleDiv.style.color = '#00FFEA';
@@ -473,9 +479,37 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     raycaster2.set(origin2, direction2);
     const currentHitOnPlane = new THREE.Vector3();
     if (raycaster2.ray.intersectPlane(dragState.dragPlane, currentHitOnPlane)) {
-      dragState.draggedWindow.group.position.copy(
-        currentHitOnPlane.add(dragState.dragOffset)
-      );
+      const newPos = currentHitOnPlane.add(dragState.dragOffset);
+      const draggedWindow = dragState.draggedWindow;
+
+      // --- Dragging constraints to keep window in view ---
+      const camPos = xrCamera.position;
+      const camDir = xrCamera.getWorldDirection(new THREE.Vector3());
+      const vecToWindow = new THREE.Vector3().subVectors(newPos, camPos);
+
+      // Horizontal clamping
+      const camDirHoriz = camDir.clone();
+      camDirHoriz.y = 0;
+      camDirHoriz.normalize();
+      const vecToWindowHoriz = vecToWindow.clone();
+      vecToWindowHoriz.y = 0;
+      
+      const horizAngle = camDirHoriz.angleTo(vecToWindowHoriz);
+      const maxHorizAngle = Math.PI / 3; // 60 degrees
+
+      if (horizAngle > maxHorizAngle) {
+        const cross = new THREE.Vector3().crossVectors(camDirHoriz, vecToWindowHoriz);
+        const rotationSign = cross.y > 0 ? 1 : -1;
+        
+        // Rotate vecToWindow back into the allowed cone
+        const correctionAngle = (horizAngle - maxHorizAngle) * -rotationSign;
+        const rotationAxis = new THREE.Vector3(0, 1, 0);
+        
+        vecToWindow.applyAxisAngle(rotationAxis, correctionAngle);
+        newPos.copy(camPos).add(vecToWindow);
+      }
+
+      draggedWindow.group.position.copy(newPos);
     }
   };
 
