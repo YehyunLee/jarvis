@@ -37,7 +37,7 @@ const ARWindow = class {
     this.titleBarMesh = null;
     this.titleBarTexture = null;
     this.htmlElement = null;
-    this.isDraggable = options.draggable !== undefined ? options.draggable : true;
+    this.isDraggable = true;
     this.title = options.title || "Double Tab & Drag";
     this.position = options.position || { x: 0, y: 0, z: -3 };
 
@@ -76,16 +76,13 @@ const ARWindow = class {
     const container = document.createElement('div');
     container.style.width = `${CONFIG.CONTENT_WIDTH}px`;
     container.style.height = `${CONFIG.CONTENT_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_PX}px`;
-    container.style.overflow = 'hidden';
+    container.style.overflow = 'visible'; // allow content overflow
     container.style.background = 'white';
-    container.style.borderRadius = '8px';
-    container.style.filter = 'drop-shadow(0 0 10px rgba(0, 255, 234, 0.7))';
     // Title bar
     const titleDiv = document.createElement('div');
     titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
-    // Jarvis neon gradient header
-    titleDiv.style.background = 'linear-gradient(90deg, rgba(10,10,20,0.9), rgba(20,20,40,0.9))';
-    titleDiv.style.borderTop = '2px solid #00FFEA';
+    // Jarvis-style neon header
+    titleDiv.style.background = 'rgba(10, 10, 20, 0.8)';
     titleDiv.style.borderBottom = '2px solid #00FFEA';
     titleDiv.style.boxShadow = '0 0 12px #00FFEA, inset 0 -1px 4px rgba(0,255,234,0.7)';
     titleDiv.style.color = '#00FFEA';
@@ -141,6 +138,7 @@ const ARWindow = class {
     this.group.add(cssObj);
     this.cssObject = cssObj;
     this.htmlElement = container;
+    container.style.pointerEvents = 'auto'; // re-enable pointer events for window content
   }
 
   async setIframeContent(url: string) {
@@ -152,15 +150,12 @@ const ARWindow = class {
     const container = document.createElement('div');
     container.style.width = `${CONFIG.CONTENT_WIDTH}px`;
     container.style.height = `${CONFIG.CONTENT_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_PX}px`;
-    container.style.overflow = 'hidden';
+    container.style.overflow = 'visible'; // allow content overflow
     container.style.background = 'white';
-    container.style.borderRadius = '8px';
-    container.style.filter = 'drop-shadow(0 0 10px rgba(0, 255, 234, 0.7))';
     const titleDiv = document.createElement('div');
     titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
     // Jarvis-style neon header
-    titleDiv.style.background = 'linear-gradient(90deg, rgba(10,10,20,0.9), rgba(20,20,40,0.9))';
-    titleDiv.style.borderTop = '2px solid #00FFEA';
+    titleDiv.style.background = 'rgba(10, 10, 20, 0.8)';
     titleDiv.style.borderBottom = '2px solid #00FFEA';
     titleDiv.style.boxShadow = '0 0 12px #00FFEA, inset 0 -1px 4px rgba(0,255,234,0.7)';
     titleDiv.style.color = '#00FFEA';
@@ -210,6 +205,7 @@ const ARWindow = class {
     this.group.add(cssObj);
     this.cssObject = cssObj;
     this.htmlElement = container;
+    container.style.pointerEvents = 'auto'; // re-enable pointer events for iframe content
   }
 
   // No-op updateContent for interactive CSS3D mode (exists for compatibility)
@@ -437,15 +433,16 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     raycaster.set(origin, direction);
     // Raycast against the same plane for dragging
     const hit = raycaster.intersectObject(dragState.draggedWindow.contentMesh!, false)[0];
-    if (hit && hit.uv) {
-      const totalUnits = CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS;
-      const titleUVThreshold = CONFIG.TITLE_BAR_HEIGHT_UNITS / totalUnits;
-      // If pointer leaves title-bar area, end drag
-      if (hit.uv.y < 1 - titleUVThreshold) {
-        endDrag();
-        return;
-      }
-    }
+    // Temporarily disable title-bar region limit so user can drag at any angle
+    // Original code removed that ended drag when pointer left title bar region
+    // if (hit && hit.uv) {
+    //   const totalUnits = CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS;
+    //   const titleUVThreshold = CONFIG.TITLE_BAR_HEIGHT_UNITS / totalUnits;
+    //   if (hit.uv.y < 1 - titleUVThreshold) {
+    //     endDrag();
+    //     return;
+    //   }
+    // }
     // Continue updating drag plane
     const targetPlaneAnchorPoint = xrCamera.position.clone().add(
       xrCamera.getWorldDirection(new THREE.Vector3()).multiplyScalar(dragState.dragDepth)
@@ -462,37 +459,9 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     raycaster2.set(origin2, direction2);
     const currentHitOnPlane = new THREE.Vector3();
     if (raycaster2.ray.intersectPlane(dragState.dragPlane, currentHitOnPlane)) {
-      const newPos = currentHitOnPlane.add(dragState.dragOffset);
-      const draggedWindow = dragState.draggedWindow;
-
-      // --- Dragging constraints to keep window in view ---
-      const camPos = xrCamera.position;
-      const camDir = xrCamera.getWorldDirection(new THREE.Vector3());
-      const vecToWindow = new THREE.Vector3().subVectors(newPos, camPos);
-
-      // Horizontal clamping
-      const camDirHoriz = camDir.clone();
-      camDirHoriz.y = 0;
-      camDirHoriz.normalize();
-      const vecToWindowHoriz = vecToWindow.clone();
-      vecToWindowHoriz.y = 0;
-      
-      const horizAngle = camDirHoriz.angleTo(vecToWindowHoriz);
-      const maxHorizAngle = Math.PI / 3; // 60 degrees
-
-      if (horizAngle > maxHorizAngle) {
-        const cross = new THREE.Vector3().crossVectors(camDirHoriz, vecToWindowHoriz);
-        const rotationSign = cross.y > 0 ? 1 : -1;
-        
-        // Rotate vecToWindow back into the allowed cone
-        const correctionAngle = (horizAngle - maxHorizAngle) * -rotationSign;
-        const rotationAxis = new THREE.Vector3(0, 1, 0);
-        
-        vecToWindow.applyAxisAngle(rotationAxis, correctionAngle);
-        newPos.copy(camPos).add(vecToWindow);
-      }
-
-      draggedWindow.group.position.copy(newPos);
+      dragState.draggedWindow.group.position.copy(
+        currentHitOnPlane.add(dragState.dragOffset)
+      );
     }
   };
 
@@ -528,16 +497,29 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     currentMount.appendChild(renderer.domElement);
     // CSS3D renderer for interactive HTML
     const cssRenderer = new CSS3DRenderer();
+    // Make CSS3DRenderer full-screen and update on resize
     cssRenderer.setSize(window.innerWidth, window.innerHeight);
     cssRenderer.domElement.style.position = 'absolute';
     cssRenderer.domElement.style.top = '0';
     cssRenderer.domElement.style.left = '0';
+    cssRenderer.domElement.style.width = '100%';
+    cssRenderer.domElement.style.height = '100%';
     cssRenderer.domElement.style.pointerEvents = 'auto';
-    overlayRef.current!.appendChild(cssRenderer.domElement);
+    cssRenderer.domElement.style.overflow = 'visible'; // allow overflow of menus
+    cssRenderer.domElement.style.zIndex = '1';
+    // Attach CSS3DRenderer on top of WebGL canvas
+    currentMount.appendChild(cssRenderer.domElement);
     cssRendererRef.current = cssRenderer;
+    // Update renderer and camera on window resize
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      cssRenderer.setSize(window.innerWidth, window.innerHeight);
+    });
 
     const arButton = ARButton.createButton(renderer, {
-      requiredFeatures:  ['local', 'anchors', 'dom-overlay', 'hit-test'],
+      requiredFeatures: ['local', 'anchors', 'dom-overlay', 'hit-test'],
       optionalFeatures: ['local-floor'],
       domOverlay: { root: document.body }
     });
@@ -571,12 +553,8 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
       if (!uv) return;
       const windowObj = windowsRef.current.find(w => w.id === windowId);
       if (!windowObj) return;
-      const totalUnits = CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS;
-      const titleUVThreshold = CONFIG.TITLE_BAR_HEIGHT_UNITS / totalUnits;
-      // If within title bar region
-      if (uv.y >= 1 - titleUVThreshold) {
-        startDrag(windowObj);
-      }
+      // Start drag on any window hit
+      startDrag(windowObj);
     };
 
     const onSelectEnd = () => {
@@ -635,8 +613,8 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
 
     return () => {
       // Clean up CSS3D renderer
-      if (cssRendererRef.current && overlayRef.current?.contains(cssRendererRef.current.domElement)) {
-        overlayRef.current.removeChild(cssRendererRef.current.domElement);
+      if (cssRendererRef.current && mountRef.current?.contains(cssRendererRef.current.domElement)) {
+        mountRef.current.removeChild(cssRendererRef.current.domElement);
       }
       if (document.body.contains(arButton)) {
         document.body.removeChild(arButton);
@@ -666,11 +644,11 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   }, [props.onSessionStart, props.onSessionEnd]);
 
   return (
-    <div className="ar-scene-wrapper" style={{ position: 'relative' }}>
+    <div className="ar-scene-wrapper" style={{ position: 'relative', overflow: 'visible' }}>
       {/* Video background streams only during AR session */}
       <video ref={videoRef} className="ar-video-bg" autoPlay muted playsInline />
       <div ref={mountRef} className="ar-scene-container" />
-      <div ref={overlayRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'auto'}} />
+      <div ref={overlayRef} style={{ position:'absolute', top:0, left:0, width:'100%', height:'100%', pointerEvents:'auto', overflow:'visible', zIndex: 10 }} />
     </div>
     );
 });
