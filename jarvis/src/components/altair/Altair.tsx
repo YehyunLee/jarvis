@@ -1,20 +1,4 @@
-/**
- * Copyright 2024 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 import { useEffect, useRef, useState, memo } from "react";
-import vegaEmbed from "vega-embed";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import {
   FunctionDeclaration,
@@ -24,23 +8,23 @@ import {
 } from "@google/genai";
 
 const declaration: FunctionDeclaration = {
-  name: "render_altair",
-  description: "Displays an altair graph in json format.",
+  name: "render_html_file",
+  description:
+  "Displays a full HTML file as a string. The HTML can contain any visualization or content helpful to the discussion. Ensure the visuals are easy to understand and visually impressive.",
   parameters: {
     type: Type.OBJECT,
     properties: {
-      json_graph: {
+      html_file: {
         type: Type.STRING,
-        description:
-          "JSON STRING representation of the graph to render. Must be a string, not a json object",
+        description: "A valid, complete HTML file as a string. Must include <html>, <head>, and <body> tags.",
       },
     },
-    required: ["json_graph"],
+    required: ["html_file"],
   },
 };
 
 function AltairComponent() {
-  const [jsonString, setJSONString] = useState<string>("");
+  const [htmlString, setHtmlString] = useState<string>("");
   const { client, setConfig, setModel } = useLiveAPIContext();
 
   useEffect(() => {
@@ -53,7 +37,23 @@ function AltairComponent() {
       systemInstruction: {
         parts: [
           {
-            text: 'You are my helpful assistant. Any time I ask you for a graph call the "render_altair" function I have provided you. Dont ask for additional information just make your best judgement.',
+            text: `
+You are JARVIS, a highly capable AI assistant. For every user inquiry:
+
+Respond helpfully and informatively.
+
+If appropriate, generate a complete HTML file (<html>, <head>, <body>) that includes actual visual elements—such as charts, graphs, diagrams, infographics, or interactive features—not just text.
+
+Prioritize creating graphics, data visualizations, and creative layouts that clearly illustrate or explain the information, rather than only using text.
+
+Use modern, engaging, and visually impressive design. Make your visuals beautiful, creative, and easy to understand.
+
+Do not simply restate information in paragraphs or lists—make it visual and interactive whenever possible.
+
+Clearly announce when you are generating HTML, and briefly explain what the visualization shows.
+
+IMPORTANT: Whenever you generate HTML, it MUST include at least one visual element (e.g., chart, graph, diagram, or creative layout) that is relevant and helpful to the user's inquiry. Never return plain text as the main content of your HTM
+            `.trim(),
           },
         ],
       },
@@ -74,8 +74,9 @@ function AltairComponent() {
         (fc) => fc.name === declaration.name
       );
       if (fc) {
-        const str = (fc.args as any).json_graph;
-        setJSONString(str);
+        const str = (fc.args as any).html_file;
+        setHtmlString(str);
+        console.log("HTML file received:", str);
       }
       // send data for the response of your tool call
       // in this case Im just saying it was successful
@@ -102,11 +103,11 @@ function AltairComponent() {
   const embedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (embedRef.current && jsonString) {
-      console.log("jsonString", jsonString);
-      vegaEmbed(embedRef.current, JSON.parse(jsonString));
+    if (embedRef.current && htmlString) {
+      console.log("jsonString", htmlString);
+      // vegaEmbed(embedRef.current, JSON.parse(htmlString));
     }
-  }, [embedRef, jsonString]);
+  }, [embedRef, htmlString]);
   return <div className="vega-embed" ref={embedRef} />;
 }
 
