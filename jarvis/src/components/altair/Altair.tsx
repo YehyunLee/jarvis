@@ -77,6 +77,15 @@ IMPORTANT: Whenever you generate HTML, it MUST include at least one visual eleme
         const str = (fc.args as any).html_file;
         setHtmlString(str);
         console.log("HTML file received:", str);
+        if ((window as any).createARHTMLWindow) {
+          (window as any).createARHTMLWindow(str);
+        }
+        // Log HTML file to server
+        fetch('/api/logHtml', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ html: str }),
+        }).catch((err) => console.error('Error logging HTML file:', err));
       }
       // send data for the response of your tool call
       // in this case Im just saying it was successful

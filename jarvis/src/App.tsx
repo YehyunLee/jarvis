@@ -21,6 +21,7 @@ import "./App.scss";
 import { useRef, useEffect, useState } from "react";
 import { useLiveAPIContext } from "./contexts/LiveAPIContext";
 import ControlTray from "./components/control-tray/ControlTray";
+import { Altair } from "./components/altair/Altair";
 
 const API_KEY = process.env.REACT_APP_GEMINI_API_KEY as string;
 if (typeof API_KEY !== "string") {
@@ -74,6 +75,7 @@ function ARComponent() {
         onSessionEnd={() => setSessionActive(false)}
       />
       <ControlTray supportsVideo={false} enableEditingSettings={true} />
+      <Altair /> {/* Mount Altair to handle HTML tool calls */}
     </>
   );
 }

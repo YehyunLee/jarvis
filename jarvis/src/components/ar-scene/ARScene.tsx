@@ -188,6 +188,34 @@ class ARWindow {
     }
   }
 
+  async setIframeContent(url: string) {
+    if (this.htmlElement && this.htmlElement.parentNode) {
+      this.htmlElement.parentNode.removeChild(this.htmlElement);
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.src = url;
+    iframe.style.cssText = `
+      width: ${CONFIG.CONTENT_WIDTH}px;
+      height: ${CONFIG.CONTENT_HEIGHT}px;
+      border: none;
+      position: absolute;
+      left: 0;
+      top: 0;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      overflow: auto;
+    `;
+    document.body.appendChild(iframe);
+    this.htmlElement = iframe;
+
+    // Update the content texture once the iframe is loaded
+    iframe.onload = () => {
+      this.updateContent();
+    };
+  }
+
   destroy() {
     if (this.group.parent) {
       this.group.parent.remove(this.group);
@@ -245,36 +273,39 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     return window;
   };
 
+  const createIframeWindow = async (url: string, options = {}) => {
+    if (!sceneRef.current) return;
+    const windowObj = createWindow(sceneRef.current, options);
+    await windowObj.setIframeContent(url);
+    return windowObj;
+  };
+
   React.useImperativeHandle(ref, () => ({
     createHTMLWindow: async (htmlContent: string, options?: any) => {
       await createHTMLWindow(htmlContent, options);
     },
   }));
-
-  // Handle AR session start/end to control webcam
+  // Expose createHTMLWindow globally for external calls
   useEffect(() => {
-    if (!rendererRef.current) return;
-    const renderer = rendererRef.current;
-    const onStart = async () => {
-      props.onSessionStart?.();
-      if (videoRef.current) {
-        const stream = await webcam.start();
-        videoRef.current.srcObject = stream;
+    (window as any).createARHTMLWindow = async (html: string) => {
+      // If full HTML document, render via iframe
+      if (/^\s*<\s*html/i.test(html)) {
+        // create blob URL for HTML document
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        await createIframeWindow(url);
+        URL.revokeObjectURL(url);
+      } else {
+        await createHTMLWindow(html);
       }
     };
-    const onEnd = () => {
-      props.onSessionEnd?.();
-      webcam.stop();
-    };
-    renderer.xr.addEventListener('sessionstart', onStart);
-    renderer.xr.addEventListener('sessionend', onEnd);
     return () => {
-      renderer.xr.removeEventListener('sessionstart', onStart);
-      renderer.xr.removeEventListener('sessionend', onEnd);
+      delete (window as any).createARHTMLWindow;
     };
-  }, [webcam, props]);
+  }, []);
 
   useEffect(() => {
+    // Three.js setup
     if (typeof window === "undefined" || !mountRef.current) return;
 
     const currentMount = mountRef.current;
