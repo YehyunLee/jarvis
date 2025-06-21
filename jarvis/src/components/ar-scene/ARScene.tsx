@@ -284,6 +284,7 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const windowsRef = useRef<ARWindow[]>([]);
   const dragStateRef = useRef({
     isDragging: false,
@@ -295,25 +296,51 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const webcam = useWebcam();
 
-  const createWindow = (scene: THREE.Scene, options = {}) => {
+  // Compute a fresh spawn position in front of the user, offsetting by angle to avoid overlap
+  const createWindow = (scene: THREE.Scene, options: any = {}) => {
+    // Determine base camera for positioning
+    let cam: THREE.Camera | null = null;
+    if (rendererRef.current) {
+      try { cam = (rendererRef.current.xr.getCamera as any)(); } catch { cam = cameraRef.current; }
+    } else {
+      cam = cameraRef.current;
+    }
+    // Default position fallback
+    let pos = options.position || new THREE.Vector3(0, 0, -3);
+    if (cam) {
+      // World camera position
+      const camPos = new THREE.Vector3();
+      cam.getWorldPosition(camPos);
+      // Use horizontal gaze direction
+      const gaze = new THREE.Vector3();
+      cam.getWorldDirection(gaze);
+      gaze.y = 0;
+      gaze.normalize();
+      // Angular offset per existing window
+      const angleOffset = windowsRef.current.length * (Math.PI / 6);
+      gaze.applyAxisAngle(new THREE.Vector3(0, 1, 0), angleOffset);
+      const distance = 2; // meters in front
+      pos = camPos.clone().add(gaze.multiplyScalar(distance));
+      pos.y = camPos.y - 0.2; // slight below eye height
+    }
     const id = `window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const window = new ARWindow(id, scene, options);
-    windowsRef.current.push(window);
-    return window;
+    const win = new ARWindow(id, scene, { ...options, position: pos });
+    windowsRef.current.push(win);
+    return win;
   };
 
   const createHTMLWindow = async (htmlContent: string, options = {}) => {
     if (!sceneRef.current) return;
-    const window = createWindow(sceneRef.current, options);
-    await window.setHTMLContent(htmlContent);
-    return window;
+    const win = createWindow(sceneRef.current, options);
+    await win.setHTMLContent(htmlContent);
+    return win;
   };
 
   const createIframeWindow = async (url: string, options = {}) => {
     if (!sceneRef.current) return;
-    const windowObj = createWindow(sceneRef.current, options);
-    await windowObj.setIframeContent(url);
-    return windowObj;
+    const win = createWindow(sceneRef.current, options);
+    await win.setIframeContent(url);
+    return win;
   };
 
   React.useImperativeHandle(ref, () => ({
@@ -425,6 +452,7 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
       0.1,
       1000
     );
+    cameraRef.current = camera;
     camera.position.z = 5;
 
     const renderer = new THREE.WebGLRenderer({
