@@ -81,10 +81,20 @@ const ARWindow = class {
     // Title bar
     const titleDiv = document.createElement('div');
     titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
-    titleDiv.style.background = 'linear-gradient(180deg, #1e1e28, #0f0f19)';
-    titleDiv.style.color = 'white';
-    titleDiv.style.font = `bold ${CONFIG.TITLE_BAR_HEIGHT_PX * 0.35}px Arial`;
-    titleDiv.style.padding = '0 10px';
+    // Jarvis-style neon header
+    titleDiv.style.background = 'rgba(10, 10, 20, 0.8)';
+    titleDiv.style.borderBottom = '2px solid #00FFEA';
+    titleDiv.style.boxShadow = '0 0 12px #00FFEA, inset 0 -1px 4px rgba(0,255,234,0.7)';
+    titleDiv.style.color = '#00FFEA';
+    titleDiv.style.fontFamily = '"Space Mono", monospace';
+    titleDiv.style.fontWeight = 'bold';
+    titleDiv.style.fontSize = `${CONFIG.TITLE_BAR_HEIGHT_PX * 0.4}px`;
+    titleDiv.style.padding = '0 20px';
+    titleDiv.style.display = 'flex';
+    titleDiv.style.alignItems = 'center';
+    titleDiv.style.justifyContent = 'space-between';
+    titleDiv.style.borderTopLeftRadius = '8px';
+    titleDiv.style.borderTopRightRadius = '8px';
     titleDiv.textContent = this.title;
     // Add close button UI
     titleDiv.style.position = 'relative';
@@ -143,10 +153,20 @@ const ARWindow = class {
     container.style.background = 'white';
     const titleDiv = document.createElement('div');
     titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
-    titleDiv.style.background = 'linear-gradient(180deg, #1e1e28, #0f0f19)';
-    titleDiv.style.color = 'white';
-    titleDiv.style.font = `bold ${CONFIG.TITLE_BAR_HEIGHT_PX * 0.35}px Arial`;
-    titleDiv.style.padding = '0 10px';
+    // Jarvis-style neon header
+    titleDiv.style.background = 'rgba(10, 10, 20, 0.8)';
+    titleDiv.style.borderBottom = '2px solid #00FFEA';
+    titleDiv.style.boxShadow = '0 0 12px #00FFEA, inset 0 -1px 4px rgba(0,255,234,0.7)';
+    titleDiv.style.color = '#00FFEA';
+    titleDiv.style.fontFamily = '"Space Mono", monospace';
+    titleDiv.style.fontWeight = 'bold';
+    titleDiv.style.fontSize = `${CONFIG.TITLE_BAR_HEIGHT_PX * 0.4}px`;
+    titleDiv.style.padding = '0 20px';
+    titleDiv.style.display = 'flex';
+    titleDiv.style.alignItems = 'center';
+    titleDiv.style.justifyContent = 'space-between';
+    titleDiv.style.borderTopLeftRadius = '8px';
+    titleDiv.style.borderTopRightRadius = '8px';
     titleDiv.textContent = this.title;
     // Add close button UI
     titleDiv.style.position = 'relative';
