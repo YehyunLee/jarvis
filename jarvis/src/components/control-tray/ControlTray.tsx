@@ -174,9 +174,9 @@ function ControlTray({
           )}
         </button>
 
-        <div className="action-button no-action outlined">
+        {/* <div className="action-button no-action outlined">
           <AudioPulse volume={volume} active={connected} hover={false} />
-        </div>
+        </div> */}
 
         {supportsVideo && (
           <>
@@ -213,7 +213,7 @@ function ControlTray({
         </div>
         <span className="text-indicator">Streaming</span>
       </div>
-      {enableEditingSettings ? <SettingsDialog /> : ""}
+      {/* {enableEditingSettings ? <SettingsDialog /> : ""} */}
     </section>
   );
 }
