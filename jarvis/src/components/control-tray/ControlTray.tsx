@@ -22,9 +22,9 @@ import { UseMediaStreamResult } from "../../hooks/use-media-stream-mux";
 import { useScreenCapture } from "../../hooks/use-screen-capture";
 import { useWebcam } from "../../hooks/use-webcam";
 import { AudioRecorder } from "../../lib/audio-recorder";
-import AudioPulse from "../audio-pulse/AudioPulse";
-import "./control-tray.scss";
-import SettingsDialog from "../settings-dialog/SettingsDialog";
+// import AudioPulse from "../audio-pulse/AudioPulse";
+// import "./control-tray.scss";
+// import SettingsDialog from "../settings-dialog/SettingsDialog";
 
 export type ControlTrayProps = {
   videoRef?: RefObject<HTMLVideoElement>;

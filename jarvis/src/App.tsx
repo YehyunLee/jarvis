@@ -83,6 +83,50 @@ function ARComponent() {
             overflow: "hidden",
           }}
         >
+          {/* Neon cyan grid overlay */}
+          <svg
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              zIndex: 0,
+              opacity: 0.18,
+              pointerEvents: "none",
+            }}
+            width="100vw"
+            height="100vh"
+          >
+            <defs>
+              <linearGradient id="cyangrid" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#00fff7" stopOpacity="0.7" />
+                <stop offset="100%" stopColor="#00fff7" stopOpacity="0.1" />
+              </linearGradient>
+            </defs>
+            {Array.from({ length: 20 }).map((_, i) => (
+              <line
+                key={i}
+                x1={(i * window.innerWidth) / 20}
+                y1={0}
+                x2={(i * window.innerWidth) / 20}
+                y2={window.innerHeight}
+                stroke="url(#cyangrid)"
+                strokeWidth="1"
+              />
+            ))}
+            {Array.from({ length: 16 }).map((_, i) => (
+              <line
+                key={100 + i}
+                x1={0}
+                y1={(i * window.innerHeight) / 16}
+                x2={window.innerWidth}
+                y2={(i * window.innerHeight) / 16}
+                stroke="url(#cyangrid)"
+                strokeWidth="1"
+              />
+            ))}
+          </svg>
           <h1
             style={{
               fontFamily: 'Orbitron, "Space Mono", monospace',
@@ -95,11 +139,35 @@ function ARComponent() {
               marginBottom: 24,
               textAlign: "center",
               filter: "drop-shadow(0 0 8px #ff00ea)",
+              position: "relative",
+              zIndex: 2,
             }}
           >
             WELCOME TO{" "}
-            <span style={{ color: "#ff00ea" }}>JARVIS AR ASSISTANT</span>
+            <span
+              style={{
+                color: "#ff00ea",
+                textShadow: "0 0 16px #00fff7, 0 0 32px #ff00ea",
+              }}
+            >
+              JARVIS AR ASSISTANT
+            </span>
           </h1>
+          {/* Cyan accent bar with glow */}
+          <div
+            style={{
+              width: 240,
+              height: 6,
+              background:
+                "linear-gradient(90deg, #00fff7 0%, #ff00ea 100%)",
+              borderRadius: 3,
+              margin: "0 auto 32px auto",
+              boxShadow:
+                "0 0 32px #00fff7, 0 0 48px #ff00ea, 0 0 8px #00fff7",
+              position: "relative",
+              zIndex: 2,
+            }}
+          />
           <p
             style={{
               color: "#fff",
@@ -112,23 +180,22 @@ function ARComponent() {
               marginBottom: 40,
               textAlign: "center",
               fontWeight: 600,
+              position: "relative",
+              zIndex: 2,
             }}
           >
             Click the{" "}
-            <span style={{ color: "#ff00ea", fontWeight: 700 }}>AR START</span>{" "}
+            <span
+              style={{
+                color: "#00fff7",
+                fontWeight: 700,
+                textShadow: "0 0 8px #00fff7",
+              }}
+            >
+              AR START
+            </span>{" "}
             button below to begin your immersive experience.
           </p>
-          <div
-            style={{
-              width: 220,
-              height: 4,
-              background:
-                "linear-gradient(90deg, #00fff7 0%, #ff00ea 100%)",
-              borderRadius: 2,
-              margin: "0 auto 32px auto",
-              boxShadow: "0 0 16px #00fff7, 0 0 24px #ff00ea",
-            }}
-          />
           <span
             style={{
               color: "#fff",
@@ -138,10 +205,49 @@ function ARComponent() {
               marginTop: 12,
               textAlign: "center",
               textShadow: "0 0 8px #00fff7",
+              position: "relative",
+              zIndex: 2,
             }}
           >
             Powered by Gemini AI · 2025
           </span>
+          {/* Animated long down arrow for AR start button */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: 100,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 3,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              pointerEvents: "none",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "4.5rem",
+                color: "#00fff7",
+                textShadow:
+                  "0 0 24px #00fff7, 0 0 32px #ff00ea, 0 0 8px #00fff7",
+                fontWeight: 900,
+                letterSpacing: "0.08em",
+                animation: "arrow-bounce 1.2s infinite cubic-bezier(.6,0,.4,1)",
+                lineHeight: 1,
+                userSelect: "none",
+              }}
+            >
+              ↓
+            </span>
+          </div>
+          <style>{`
+            @keyframes arrow-bounce {
+              0% { transform: translateY(0); }
+              50% { transform: translateY(18px); }
+              100% { transform: translateY(0); }
+            }
+          `}</style>
         </div>
       )}
       <ARScene
