@@ -171,3 +171,86 @@ body {
   border-radius: 32px;
   max-height: fit-content;
 }
+
+/* AR Start Screen */
+.start-screen-ar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-align: center;
+  z-index: 1000;
+
+  h1 {
+    font-size: 3rem;
+    margin-bottom: 20px;
+    text-shadow: 0 0 20px rgba(0, 255, 247, 0.5);
+  }
+
+  p {
+    font-size: 1.2rem;
+    max-width: 600px;
+    line-height: 1.6;
+  }
+  .ar-start-button {
+    margin-top: 30px;
+    padding: 15px 40px;
+    font-size: 1.3rem;
+    font-weight: bold;
+    background: linear-gradient(135deg, #00fff7 0%, #ff00ea 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 8px 25px rgba(0, 255, 247, 0.3);
+    transition: all 0.3s ease;
+    
+    &:hover:not(:disabled) {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 35px rgba(0, 255, 247, 0.5);
+      background: linear-gradient(135deg, #ff00ea 0%, #00fff7 100%);
+    }
+    
+    &:active:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: #666;
+      box-shadow: none;
+      transform: none;
+    }
+  }
+}
+
+/* AR Controls */
+.ar-controls-main {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 16px;
+  padding: 15px;
+  backdrop-filter: blur(15px);
+  border: 2px solid rgba(0, 255, 247, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+  .control-tray {
+    background: transparent !important;
+    margin: 0;
+    padding: 0;
+  }
+}

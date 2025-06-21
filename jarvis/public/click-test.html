@@ -1,0 +1,64 @@
+<!-- Simple test page to verify the AR windows work -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AR Window Click Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-button { 
+            padding: 15px 30px; 
+            font-size: 18px; 
+            background: #2196F3; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 10px;
+        }
+        .test-button:hover { background: #1976D2; }
+        .clicked { background: #4CAF50 !important; }
+        .status { 
+            background: #f0f0f0; 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 3px; 
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 AR Window Click Test</h1>
+    <p>Try clicking these buttons to test interactivity:</p>
+    
+    <button class="test-button" onclick="testClick(this, 1)">Test Button 1</button>
+    <button class="test-button" onclick="testClick(this, 2)">Test Button 2</button>
+    <button class="test-button" onclick="testClick(this, 3)">Test Button 3</button>
+    
+    <div class="status" id="status">No clicks detected yet</div>
+    
+    <script>
+        let clickCount = 0;
+        
+        function testClick(button, buttonNum) {
+            clickCount++;
+            button.classList.add('clicked');
+            button.textContent = `Clicked! (${clickCount})`;
+            
+            document.getElementById('status').textContent = 
+                `Button ${buttonNum} clicked! Total clicks: ${clickCount}`;
+            
+            console.log(`AR Window: Button ${buttonNum} clicked! Total: ${clickCount}`);
+            
+            // Reset after 2 seconds
+            setTimeout(() => {
+                button.classList.remove('clicked');
+                button.textContent = `Test Button ${buttonNum}`;
+            }, 2000);
+        }
+        
+        // Add global click listener
+        document.addEventListener('click', (e) => {
+            console.log('Global click detected on:', e.target);
+        });
+    </script>
+</body>
+</html>

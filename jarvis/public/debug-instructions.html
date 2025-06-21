@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AR Click Debug Instructions</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: #f0f0f0;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .debug-box { 
+            background: #333; 
+            color: white; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 15px 0;
+            font-family: monospace;
+        }
+        .step { 
+            background: white; 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 5px;
+            border-left: 4px solid #2196F3;
+        }
+        .important { 
+            background: #fff3cd; 
+            padding: 10px; 
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .button-demo {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #2196F3;
+            color: white;
+            border-radius: 5px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐛 AR Click Debugging Guide</h1>
+    
+    <div class="important">
+        <strong>📱 For Mobile/Phone Users:</strong> This guide helps you debug AR window clicking issues when port forwarding from your computer to your phone.
+    </div>
+
+    <h2>🚀 Quick Start</h2>
+    
+    <div class="step">
+        <h3>1. Enable Debug Overlay</h3>
+        <p>You'll see a <span class="button-demo">🐛</span> button in the top-right corner. Tap it to show/hide the debug console.</p>
+        <p><strong>Alternative:</strong> Triple-tap the top-left corner of the screen.</p>
+    </div>
+
+    <div class="step">
+        <h3>2. Check Window Creation</h3>
+        <p>After 3 seconds, you should see messages like:</p>
+        <div class="debug-box">
+            [14:32:15] Creating test window...<br>
+            [14:32:18] Timeout reached, creating iframe test window...<br>
+            [14:32:18] Test iframe created! Windows: 1
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>3. Test Clicking</h3>
+        <p>Try clicking anywhere on the screen. You should see:</p>
+        <div class="debug-box">
+            [14:32:25] SIMPLE CLICK TEST - ANY CLICK DETECTED<br>
+            [14:32:25] RAYCAST RESULTS<br>
+            [14:32:25] Total meshes: 2, Intersections: 0
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>4. Create Test Windows</h3>
+        <p>If you have a keyboard connected:</p>
+        <ul>
+            <li>Press <strong>T</strong> → Creates red HTML test window</li>
+            <li>Press <strong>I</strong> → Creates iframe test window</li>
+        </ul>
+        <p>Or use the "Add Web Page to AR" button in the app.</p>
+    </div>
+
+    <h2>📊 What to Look For</h2>
+
+    <div class="step">
+        <h3>Success Indicators:</h3>
+        <ul>
+            <li>✅ Windows created successfully (count > 0)</li>
+            <li>✅ Click detection shows mouse coordinates</li>
+            <li>✅ Raycast finds intersections when clicking AR windows</li>
+            <li>✅ Modal popup opens when clicking iframe windows</li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h3>Problem Indicators:</h3>
+        <ul>
+            <li>❌ No windows created after 3 seconds</li>
+            <li>❌ "Missing refs" errors in debug console</li>
+            <li>❌ Mouse coordinates always show as 0,0</li>
+            <li>❌ No intersections found when clicking visible windows</li>
+        </ul>
+    </div>
+
+    <h2>🔧 Troubleshooting</h2>
+
+    <div class="step">
+        <h3>If No Windows Appear:</h3>
+        <p>Check debug console for errors like "Scene ref not available" or "Missing refs"</p>
+    </div>
+
+    <div class="step">
+        <h3>If Windows Appear But Clicks Don't Work:</h3>
+        <p>Look for mouse coordinate logs. If they're always 0,0, there's a touch/mouse event issue.</p>
+    </div>
+
+    <div class="step">
+        <h3>If Clicks Detected But No Intersections:</h3>
+        <p>The raycasting isn't hitting the AR window meshes. Check if "Total meshes" > 0.</p>
+    </div>
+
+    <div class="important">
+        <strong>🔍 Advanced:</strong> The debug overlay stays on screen and shows real-time information. Keep it open while testing to see exactly what's happening when you click.
+    </div>
+
+    <h2>📝 Common Issues & Fixes</h2>
+
+    <div class="step">
+        <h3>Mobile Safari:</h3>
+        <p>May need to add the page to home screen for better WebXR support.</p>
+    </div>
+
+    <div class="step">
+        <h3>Touch vs Mouse Events:</h3>
+        <p>The system detects both touch and mouse events. On mobile, touches are converted to mouse events.</p>
+    </div>
+
+    <div class="step">
+        <h3>AR Session:</h3>
+        <p>Click the AR button to enter AR mode for full functionality. Some features work in preview mode too.</p>
+    </div>
+</body>
+</html>
