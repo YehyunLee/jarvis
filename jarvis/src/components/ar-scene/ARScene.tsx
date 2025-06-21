@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { ARButton } from 'three/examples/jsm/webxr/ARButton.js';
-import html2canvas from 'html2canvas';
+import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import './ar-scene.scss';
 import { useWebcam } from '../../hooks/use-webcam';
 
@@ -18,24 +18,23 @@ const CONFIG = {
 };
 
 // ARWindow class from ar.js, converted to TypeScript
-class ARWindow {
+const ARWindow = class {
   id: string;
   group: THREE.Group;
   contentMesh: THREE.Mesh | null;
   titleBarMesh: THREE.Mesh | null;
-  contentTexture: THREE.CanvasTexture | null;
   titleBarTexture: THREE.CanvasTexture | null;
   htmlElement: HTMLElement | null;
   isDraggable: boolean;
   title: string;
   position: { x: number; y: number; z: number };
+  cssObject: CSS3DObject | null = null;
 
   constructor(id: string, scene: THREE.Scene, options: any = {}) {
     this.id = id;
     this.group = new THREE.Group();
     this.contentMesh = null;
     this.titleBarMesh = null;
-    this.contentTexture = null;
     this.titleBarTexture = null;
     this.htmlElement = null;
     this.isDraggable = true;
@@ -53,22 +52,18 @@ class ARWindow {
   }
 
   createContentPlane() {
-    const canvas = document.createElement("canvas");
-    canvas.width = CONFIG.CONTENT_WIDTH;
-    canvas.height = CONFIG.CONTENT_HEIGHT;
-
-    this.contentTexture = new THREE.CanvasTexture(canvas);
-    this.contentTexture.minFilter = THREE.LinearFilter;
-    this.contentTexture.magFilter = THREE.LinearFilter;
-
+    // Invisible plane for raycast interactions
     const geometry = new THREE.PlaneGeometry(CONFIG.PLANE_WIDTH, CONFIG.PLANE_HEIGHT);
     const material = new THREE.MeshBasicMaterial({
-      map: this.contentTexture,
-      side: THREE.DoubleSide,
       transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
     });
 
-    this.contentMesh = new THREE.Mesh(geometry, material);
+    this.contentMesh = new THREE.Mesh(
+      geometry,
+      material,
+    );
     this.contentMesh.position.y = -(CONFIG.TITLE_BAR_HEIGHT_UNITS / 2);
     this.contentMesh.userData = { windowId: this.id, type: 'content' };
     this.group.add(this.contentMesh);
@@ -140,80 +135,53 @@ class ARWindow {
   }
 
   async setHTMLContent(htmlContent: string) {
-    if (this.htmlElement && this.htmlElement.parentNode) {
-      this.htmlElement.parentNode.removeChild(this.htmlElement);
+    // Remove old CSS3DObject if present
+    if (this.cssObject) {
+      this.group.remove(this.cssObject);
+      this.cssObject = null;
     }
-
+    // Create interactive DOM container
     const div = document.createElement('div');
-    div.id = `ar-window-${this.id}-${Date.now()}`;
-    div.style.cssText = `
-      width: ${CONFIG.CONTENT_WIDTH}px;
-      height: ${CONFIG.CONTENT_HEIGHT}px;
-      position: absolute;
-      left: -9999px;
-      top: 0;
-      margin: 0;
-      padding: 10px;
-      box-sizing: border-box;
-      overflow: auto;
-      background: white;
-      font-family: Arial, sans-serif;
-      font-size: 14px;
-      line-height: 1.4;
-    `;
+    div.style.width = `${CONFIG.CONTENT_WIDTH}px`;
+    div.style.height = `${CONFIG.CONTENT_HEIGHT}px`;
+    div.style.overflow = 'auto';
+    div.style.background = 'white';
     div.innerHTML = htmlContent;
-    document.body.appendChild(div);
+    // Wrap as CSS3DObject
+    const cssObj = new CSS3DObject(div);
+    // Position to align with content plane
+    cssObj.position.copy(this.contentMesh!.position);
+    cssObj.scale.set(
+      CONFIG.PLANE_WIDTH / CONFIG.CONTENT_WIDTH,
+      CONFIG.PLANE_HEIGHT / CONFIG.CONTENT_HEIGHT,
+      1
+    );
+    this.group.add(cssObj);
+    this.cssObject = cssObj;
     this.htmlElement = div;
-
-    await this.updateContent();
-  }
-
-  async updateContent() {
-    if (!this.htmlElement || !this.contentTexture) return;
-
-    try {
-      const canvas = this.contentTexture.image;
-      await html2canvas(this.htmlElement, {
-        canvas,
-        width: CONFIG.CONTENT_WIDTH,
-        height: CONFIG.CONTENT_HEIGHT,
-        scale: 1,
-        useCORS: true,
-        backgroundColor: null,
-        logging: false,
-      });
-      this.contentTexture.needsUpdate = true;
-    } catch (error) {
-      console.error("Error updating window content:", error);
-    }
   }
 
   async setIframeContent(url: string) {
-    if (this.htmlElement && this.htmlElement.parentNode) {
-      this.htmlElement.parentNode.removeChild(this.htmlElement);
+    // Remove old CSS3DObject if present
+    if (this.cssObject) {
+      this.group.remove(this.cssObject);
+      this.cssObject = null;
     }
-
     const iframe = document.createElement('iframe');
     iframe.src = url;
-    iframe.style.cssText = `
-      width: ${CONFIG.CONTENT_WIDTH}px;
-      height: ${CONFIG.CONTENT_HEIGHT}px;
-      border: none;
-      position: absolute;
-      left: 0;
-      top: 0;
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      overflow: auto;
-    `;
-    document.body.appendChild(iframe);
+    iframe.style.width = `${CONFIG.CONTENT_WIDTH}px`;
+    iframe.style.height = `${CONFIG.CONTENT_HEIGHT}px`;
+    iframe.style.border = 'none';
+    const cssObj = new CSS3DObject(iframe);
+    cssObj.position.copy(this.contentMesh!.position);
+    cssObj.scale.set(
+      CONFIG.PLANE_WIDTH / CONFIG.CONTENT_WIDTH,
+      CONFIG.PLANE_HEIGHT / CONFIG.CONTENT_HEIGHT,
+      1
+    );
+    this.group.add(cssObj);
+    this.cssObject = cssObj;
     this.htmlElement = iframe;
-
-    // Update the content texture once the iframe is loaded
-    iframe.onload = () => {
-      this.updateContent();
-    };
   }
 
   // Handle clicks on the content plane or iframe
@@ -259,7 +227,6 @@ class ARWindow {
     if (this.htmlElement && this.htmlElement.parentNode) {
       this.htmlElement.parentNode.removeChild(this.htmlElement);
     }
-    if (this.contentTexture) this.contentTexture.dispose();
     if (this.titleBarTexture) this.titleBarTexture.dispose();
     if (this.contentMesh) {
       this.contentMesh.geometry.dispose();
@@ -268,6 +235,9 @@ class ARWindow {
     if (this.titleBarMesh) {
       this.titleBarMesh.geometry.dispose();
       (this.titleBarMesh.material as THREE.Material).dispose();
+    }
+    if (this.cssObject) {
+      this.group.remove(this.cssObject);
     }
   }
 }
@@ -284,8 +254,9 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cssRendererRef = useRef<CSS3DRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const windowsRef = useRef<ARWindow[]>([]);
+  const windowsRef = useRef<typeof ARWindow[]>([]);
   const dragStateRef = useRef({
     isDragging: false,
     draggedWindow: null as ARWindow | null,
@@ -295,6 +266,7 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   });
   const videoRef = useRef<HTMLVideoElement>(null);
   const webcam = useWebcam();
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   // Compute a fresh spawn position in front of the user, offsetting by angle to avoid overlap
   const createWindow = (scene: THREE.Scene, options: any = {}) => {
@@ -475,6 +447,15 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     renderer.xr.enabled = true;
     rendererRef.current = renderer;
     currentMount.appendChild(renderer.domElement);
+    // CSS3D renderer for interactive HTML
+    const cssRenderer = new CSS3DRenderer();
+    cssRenderer.setSize(window.innerWidth, window.innerHeight);
+    cssRenderer.domElement.style.position = 'absolute';
+    cssRenderer.domElement.style.top = '0';
+    cssRenderer.domElement.style.left = '0';
+    cssRenderer.domElement.style.pointerEvents = 'auto';
+    overlayRef.current!.appendChild(cssRenderer.domElement);
+    cssRendererRef.current = cssRenderer;
 
     const arButton = ARButton.createButton(renderer, {
       requiredFeatures: ['hit-test', 'dom-overlay'],
@@ -537,9 +518,14 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
         windowsRef.current.forEach(w => w.group.lookAt(xrCamera.position));
       }
       renderer.render(scene, camera);
+      cssRenderer.render(scene, camera);
     });
 
     return () => {
+      // Clean up CSS3D renderer
+      if (cssRendererRef.current && overlayRef.current?.contains(cssRendererRef.current.domElement)) {
+        overlayRef.current.removeChild(cssRendererRef.current.domElement);
+      }
       if (document.body.contains(arButton)) {
         document.body.removeChild(arButton);
       }
@@ -568,10 +554,11 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   }, [props.onSessionStart, props.onSessionEnd]);
 
   return (
-    <div className="ar-scene-wrapper">
+    <div className="ar-scene-wrapper" style={{ position: 'relative' }}>
       {/* Video background streams only during AR session */}
       <video ref={videoRef} className="ar-video-bg" autoPlay muted playsInline />
       <div ref={mountRef} className="ar-scene-container" />
+      <div ref={overlayRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'auto'}} />
     </div>
     );
 });
