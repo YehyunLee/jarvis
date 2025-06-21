@@ -156,6 +156,9 @@ const ARWindow = class {
       CONFIG.PLANE_HEIGHT / CONFIG.CONTENT_HEIGHT,
       1
     );
+    // Nudge forward slightly so it renders on top of the title bar mesh
+    cssObj.position.z += 0.001;
+
     this.group.add(cssObj);
     this.cssObject = cssObj;
     this.htmlElement = div;
@@ -179,9 +182,17 @@ const ARWindow = class {
       CONFIG.PLANE_HEIGHT / CONFIG.CONTENT_HEIGHT,
       1
     );
+    // Nudge forward slightly so it renders on top of the title bar mesh
+    cssObj.position.z += 0.001;
+
     this.group.add(cssObj);
     this.cssObject = cssObj;
     this.htmlElement = iframe;
+  }
+
+  // No-op updateContent for interactive CSS3D mode (exists for compatibility)
+  updateContent(): void {
+    // no screenshot update needed for CSS3D
   }
 
   // Handle clicks on the content plane or iframe
@@ -201,7 +212,6 @@ const ARWindow = class {
       const element = document.elementFromPoint(x, y);
       if (element && this.htmlElement.contains(element)) {
         (element as HTMLElement).click();
-        setTimeout(() => this.updateContent(), 100);
       }
       this.htmlElement.style.left = origLeft;
       this.htmlElement.style.top = origTop;
@@ -256,10 +266,10 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cssRendererRef = useRef<CSS3DRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const windowsRef = useRef<typeof ARWindow[]>([]);
+  const windowsRef = useRef<InstanceType<typeof ARWindow>[]>([]);
   const dragStateRef = useRef({
     isDragging: false,
-    draggedWindow: null as ARWindow | null,
+    draggedWindow: null as InstanceType<typeof ARWindow> | null,
     dragDepth: 0,
     dragOffset: new THREE.Vector3(),
     dragPlane: new THREE.Plane(),
@@ -309,7 +319,7 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     }
     const id = `window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const win = new ARWindow(id, scene, { ...options, position: pos });
-    windowsRef.current.push(win);
+    windowsRef.current.push(win as InstanceType<typeof ARWindow>);
     return win;
   };
 
@@ -361,7 +371,7 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
       if (!isPress) {
         const wasClosed = windowObj.handleTitleBarClick(uv!);
         if (!wasClosed && windowObj.isDraggable) {
-          startDrag(windowObj);
+          startDrag(windowObj as InstanceType<typeof ARWindow>);
         }
       }
     } else if (type === 'content' && !isPress) {
@@ -369,7 +379,7 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     }
   };
 
-  const startDrag = (windowObj: ARWindow) => {
+  const startDrag = (windowObj: InstanceType<typeof ARWindow>) => {
     if (!rendererRef.current || !rendererRef.current.xr.isPresenting) return;
     const dragState = dragStateRef.current;
     dragState.isDragging = true;
