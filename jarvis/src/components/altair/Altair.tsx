@@ -8,7 +8,7 @@ import {
 } from "@google/genai";
 
 // No changes to htmlDeclaration
-const htmlDeclaration: FunctionDeclaration = {
+const declaration: FunctionDeclaration = {
   name: "render_html_file",
   description:
   "Use this function for response to display a full HTML file as a string. The HTML must contain visualizations or visual content that complements your audio explanation. This function must be called for every user interaction without exception.",
