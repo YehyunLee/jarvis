@@ -7,10 +7,11 @@ import {
   Type,
 } from "@google/genai";
 
-const declaration: FunctionDeclaration = {
+// No changes to htmlDeclaration
+const htmlDeclaration: FunctionDeclaration = {
   name: "render_html_file",
   description:
-  "ALWAYS use this function for EVERY response to display a full HTML file as a string. The HTML must contain visualizations or visual content that complements your audio explanation. This function must be called for every user interaction without exception.",
+  "Use this function for response to display a full HTML file as a string. The HTML must contain visualizations or visual content that complements your audio explanation. This function must be called for every user interaction without exception.",
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -23,20 +24,22 @@ const declaration: FunctionDeclaration = {
   },
 };
 
+// ⭐ 1. UPGRADED BROWSER TASK DECLARATION
+// It now handles both simple text tasks and complex, structured tasks for things like placing an order.
 const executeTaskDeclaration: FunctionDeclaration = {
   name: "execute_task",
   description:
-    "ALWAYS call this function when the user says browser use also call this function whenever you need to request the agent to perform any action on your behalf in the browser, such as ordering food, calling a ride, or any other web-based task. The 'task' parameter should clearly describe what you want the agent to do.",
+    "Call this function whenever the user requests browser use, agent actions, or similar tasks. It sends the user's task to an external API for execution.",
   parameters: {
     type: Type.OBJECT,
     properties: {
       task: {
         type: Type.STRING,
-        description: "The task to execute."
-      }
+        description: "The user's requested task, as a string.",
+      },
     },
-    required: ["task"]
-  }
+    required: ["task"],
+  },
 };
 
 function AltairComponent() {
@@ -50,6 +53,9 @@ function AltairComponent() {
       speechConfig: {
         voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
       } as any,
+      // ⭐ 2. UPGRADED SYSTEM INSTRUCTIONS
+      // We've added a new rule to the tool_router to teach the AI when and how
+      // to use the new `structured_task` capability.
       systemInstruction: {
         parts: [
           {
@@ -110,11 +116,33 @@ function AltairComponent() {
             
                 <tool_router>
                     <title>Tool Selection Logic</title>
-                    <objective>Analyze the user's intent and select the correct tool.</objective>
+        <objective>Analyze the user's intent and select the correct tool based on the following hierarchy.</objective>
+        
                     <tool_choice>
-                        <intent>Information & Data Requests</intent>
-                        <action>Use the 'render_html_file' tool.</action>
+            <intent>A complex, multi-step web action like placing an order or booking a flight.</intent>
+            <triggers>
+                <trigger>User asks to buy, order, purchase, book, or reserve something.</trigger>
+                <trigger>User provides multiple pieces of information like a product, an address, and a name in a single command.</trigger>
+            </triggers>
+            <action>Use the 'execute_browser_task' tool with the 'structured_task' parameter. Populate the 'action' and 'payload' with all the details provided by the user.</action>
+            <example>User says: "Browser use, order a 16-inch pepperoni pizza for delivery to Jane Doe at 456 Tech Avenue, Waterloo, ON, N2L 3G1, and use the saved Visa." -> Use 'execute_browser_task' with 'structured_task'.</example>
                     </tool_choice>
+
+                    <tool_choice>
+            <intent>A simple, direct command to perform a web-based action.</intent>
+            <triggers>
+                <trigger>Explicit keywords like "browser use", "go to", "search on", "fill out", "click on".</trigger>
+            </triggers>
+            <action>Use the 'execute_browser_task' tool with the simple 'task' parameter.</action>
+            <example>User says: "Browser use, go to Wikipedia and search for the history of AI." -> Use 'execute_browser_task' with 'task'.</example>
+        </tool_choice>
+
+        <tool_choice>
+            <intent>General information requests, data visualization, or any other query that is not a browser command.</intent>
+            <action>Use the 'render_html_file' tool to display the information visually.</action>
+            <example>User says: "What is the capital of Australia?" -> Use 'render_html_file' to show a map and information.</example>
+                    </tool_choice>
+
                     <tool_choice>
                         <intent>Live Scene Analysis / Camera Feed Requests</intent>
                         <action>Use the 'render_live_analysis_feed' tool, following the Creative License Protocol.</action>
