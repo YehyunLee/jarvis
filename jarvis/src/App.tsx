@@ -56,25 +56,19 @@ function App() {
 
 function ARComponent({ onSessionReset }: { onSessionReset?: () => void }) {
   const arSceneRef = useRef<ARSceneHandles>(null);
+  // Prompt for microphone and camera permissions on title page
+  React.useEffect(() => {
+    navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+      .then(stream => {
+        // stop tracks immediately since only prompting
+        stream.getTracks().forEach(track => track.stop());
+      })
+      .catch(err => console.warn('Permission request failed:', err));
+  }, []);
   const { client, disconnect } = useLiveAPIContext();
   const [sessionActive, setSessionActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
-  // Prompt permissions and start AR session
-  const startAR = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      setVideoStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      // Trigger the XR ARButton click to start session
-      const btn = document.getElementById('ar-button') as HTMLElement | null;
-      btn?.click();
-    } catch (err) {
-      console.error('Camera/microphone permission denied', err);
-    }
-  };
 
   useEffect(() => {
     const handleContent = (data: any) => {
