@@ -23,6 +23,22 @@ const declaration: FunctionDeclaration = {
   },
 };
 
+const executeTaskDeclaration: FunctionDeclaration = {
+  name: "execute_task",
+  description:
+    "ALWAYS call this function when the user says browser use also call this function whenever you need to request the agent to perform any action on your behalf in the browser, such as ordering food, calling a ride, or any other web-based task. The 'task' parameter should clearly describe what you want the agent to do.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      task: {
+        type: Type.STRING,
+        description: "The task to execute."
+      }
+    },
+    required: ["task"]
+  }
+};
+
 function AltairComponent() {
   const [htmlString, setHtmlString] = useState<string>("");
   const { client, setConfig, setModel } = useLiveAPIContext();
@@ -87,16 +103,17 @@ function AltairComponent() {
       tools: [
         // there is a free-tier quota for search
         { googleSearch: {} },
-        { functionDeclarations: [declaration] },
+        { functionDeclarations: [declaration, executeTaskDeclaration] },
       ],
     });
   }, [setConfig, setModel]);
 
   useEffect(() => {
-    const onToolCall = (toolCall: LiveServerToolCall) => {
+    const onToolCall = async (toolCall: LiveServerToolCall) => {
       if (!toolCall.functionCalls) {
         return;
       }
+      // Handle render_html_file as before
       const fc = toolCall.functionCalls.find(
         (fc) => fc.name === declaration.name
       );
@@ -113,6 +130,40 @@ function AltairComponent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ html: str }),
         }).catch((err) => console.error('Error logging HTML file:', err));
+      }
+      // Handle execute_task tool call
+      const execFc = toolCall.functionCalls.find(
+        (fc) => fc.name === executeTaskDeclaration.name
+      );
+      if (execFc) {
+        try {
+          const response = await fetch('http://127.0.0.1:8000/execute-task', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              task: (execFc.args as any).task,
+              use_llm_cleaning: 'true',
+            }),
+          });
+          const result = await response.json();
+          // Optionally, send the result back to Gemini
+          client.sendToolResponse({
+            functionResponses: [{
+              response: { output: result },
+              id: execFc.id,
+              name: execFc.name,
+            }],
+          });
+        } catch (err) {
+          console.error('Error calling execute_task API:', err);
+          client.sendToolResponse({
+            functionResponses: [{
+              response: { output: { success: false, error: String(err) } },
+              id: execFc.id,
+              name: execFc.name,
+            }],
+          });
+        }
       }
       // send data for the response of your tool call
       // in this case Im just saying it was successful
