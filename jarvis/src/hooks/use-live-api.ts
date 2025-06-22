@@ -105,6 +105,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
 
   const disconnect = useCallback(async () => {
     client.disconnect();
+    audioStreamerRef.current?.stop(); // Stop audio output immediately
     setConnected(false);
   }, [setConnected, client]);
 
