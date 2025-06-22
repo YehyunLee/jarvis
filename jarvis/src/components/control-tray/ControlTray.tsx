@@ -22,12 +22,12 @@ import { UseMediaStreamResult } from "../../hooks/use-media-stream-mux";
 import { useScreenCapture } from "../../hooks/use-screen-capture";
 import { useWebcam } from "../../hooks/use-webcam";
 import { AudioRecorder } from "../../lib/audio-recorder";
-import AudioPulse from "../audio-pulse/AudioPulse";
+// import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
-import SettingsDialog from "../settings-dialog/SettingsDialog";
+// import SettingsDialog from "../settings-dialog/SettingsDialog";
 
 export type ControlTrayProps = {
-  videoRef: RefObject<HTMLVideoElement>;
+  videoRef?: RefObject<HTMLVideoElement>;
   children?: ReactNode;
   supportsVideo: boolean;
   onVideoStreamChange?: (stream: MediaStream | null) => void;
@@ -78,6 +78,13 @@ function ControlTray({
   const { client, connected, connect, disconnect, volume } =
     useLiveAPIContext();
 
+  // Auto-connect on mount if not already connected
+  useEffect(() => {
+    if (!connected) {
+      connect();
+    }
+  }, [connected, connect]);
+
   useEffect(() => {
     if (!connected && connectButtonRef.current) {
       connectButtonRef.current.focus();
@@ -92,32 +99,65 @@ function ControlTray({
 
   useEffect(() => {
     const onData = (base64: string) => {
-      client.sendRealtimeInput([
+      // Get the latest video frame from the buffer
+      const videoRefFrame = renderCanvasRef.current;
+      let videoData: string | null = null;
+      if (videoRefFrame && videoRef && videoRef.current) {
+        const ctx = videoRefFrame.getContext("2d");
+        videoRefFrame.width = videoRef.current.videoWidth * 0.25;
+        videoRefFrame.height = videoRef.current.videoHeight * 0.25;
+        if (videoRefFrame.width + videoRefFrame.height > 0) {
+          ctx?.drawImage(
+            videoRef.current,
+            0,
+            0,
+            videoRefFrame.width,
+            videoRefFrame.height
+          );
+          const base64img = videoRefFrame.toDataURL("image/jpeg", 1.0);
+          videoData = base64img.slice(base64img.indexOf(",") + 1);
+        }
+      }
+      const payload = [
         {
           mimeType: "audio/pcm;rate=16000",
           data: base64,
         },
-      ]);
+      ];
+      if (videoData) {
+        payload.push({ mimeType: "image/jpeg", data: videoData });
+      }
+      client.sendRealtimeInput(payload);
     };
     if (connected && !muted && audioRecorder) {
-      audioRecorder.on("data", onData).on("volume", setInVolume).start();
+      audioRecorder
+        .on("data", onData)
+        .on("volume", setInVolume)
+        .start()
+        .catch((err: any) => {
+          console.error("AudioRecorder start error:", err);
+        });
     } else {
-      audioRecorder.stop();
+      try {
+        audioRecorder.stop();
+      } catch (err) {
+        console.warn("AudioRecorder stop error:", err);
+      }
     }
     return () => {
       audioRecorder.off("data", onData).off("volume", setInVolume);
     };
-  }, [connected, client, muted, audioRecorder]);
+  }, [connected, client, muted, audioRecorder, videoRef]);
 
   useEffect(() => {
-    if (videoRef.current) {
+    if (videoRef && videoRef.current) {
       videoRef.current.srcObject = activeVideoStream;
     }
 
     let timeoutId = -1;
 
     function sendVideoFrame() {
-      const video = videoRef.current;
+      const video = videoRef?.current;
       const canvas = renderCanvasRef.current;
 
       if (!video || !canvas) {
@@ -174,19 +214,19 @@ function ControlTray({
           )}
         </button>
 
-        <div className="action-button no-action outlined">
+        {/* <div className="action-button no-action outlined">
           <AudioPulse volume={volume} active={connected} hover={false} />
-        </div>
+        </div> */}
 
         {supportsVideo && (
           <>
-            <MediaStreamButton
+            {/* <MediaStreamButton
               isStreaming={screenCapture.isStreaming}
               start={changeStreams(screenCapture)}
               stop={changeStreams()}
               onIcon="cancel_presentation"
               offIcon="present_to_all"
-            />
+            /> */}
             <MediaStreamButton
               isStreaming={webcam.isStreaming}
               start={changeStreams(webcam)}
@@ -199,7 +239,7 @@ function ControlTray({
         {children}
       </nav>
 
-      <div className={cn("connection-container", { connected })}>
+      {/* <div className={cn("connection-container", { connected })}>
         <div className="connection-button-container">
           <button
             ref={connectButtonRef}
@@ -212,8 +252,8 @@ function ControlTray({
           </button>
         </div>
         <span className="text-indicator">Streaming</span>
-      </div>
-      {enableEditingSettings ? <SettingsDialog /> : ""}
+      </div> */}
+      {/* {enableEditingSettings ? <SettingsDialog /> : ""} */}
     </section>
   );
 }
