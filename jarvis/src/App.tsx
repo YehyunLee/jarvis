@@ -60,6 +60,21 @@ function ARComponent({ onSessionReset }: { onSessionReset?: () => void }) {
   const [sessionActive, setSessionActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  // Prompt permissions and start AR session
+  const startAR = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setVideoStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      // Trigger the XR ARButton click to start session
+      const btn = document.getElementById('ar-button') as HTMLElement | null;
+      btn?.click();
+    } catch (err) {
+      console.error('Camera/microphone permission denied', err);
+    }
+  };
 
   useEffect(() => {
     const handleContent = (data: any) => {
