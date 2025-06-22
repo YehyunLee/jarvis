@@ -1,19 +1,3 @@
-/**
- * Copyright 2024 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
 import { LiveClientOptions } from "./types";
 import ARScene, { ARSceneHandles } from "./components/ar-scene/ARScene";
@@ -46,6 +30,8 @@ function ARComponent() {
   const arSceneRef = useRef<ARSceneHandles>(null);
   const { client } = useLiveAPIContext();
   const [sessionActive, setSessionActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
     const handleContent = (data: any) => {
@@ -250,10 +236,43 @@ function ARComponent() {
           `}</style>
         </div>
       )}
+      <div
+        className="main-app-area"
+        style={{
+          position: "absolute",
+          bottom: "20px",
+          right: "20px",
+          zIndex: 1,
+          width: "320px",
+          height: "240px",
+          display: videoStream ? "block" : "none",
+          border: "2px solid #00FFEA",
+          borderRadius: "16px",
+          overflow: "hidden",
+          boxShadow: "0 0 12px #00FFEA",
+        }}
+      >
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="stream"
+          muted
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            borderRadius: "14px",
+          }}
+        />
+      </div>
       <ARScene
         ref={arSceneRef}
         onSessionStart={() => setSessionActive(true)}
-        onSessionEnd={() => setSessionActive(false)}
+        onSessionEnd={() => {
+          setSessionActive(false);
+          setVideoStream(null);
+        }}
       />
       {sessionActive && (
         <div
@@ -267,7 +286,12 @@ function ARComponent() {
             justifyContent: "center",
           }}
         >
-          <ControlTray supportsVideo={false} enableEditingSettings={true} />
+          <ControlTray
+            videoRef={videoRef}
+            onVideoStreamChange={setVideoStream}
+            supportsVideo={true}
+            enableEditingSettings={true}
+          />
         </div>
       )}
       <Altair /> {/* Mount Altair to handle HTML tool calls */}
