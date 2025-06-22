@@ -11,27 +11,34 @@ import subprocess
 import time
 import litellm
 from typing import Optional
+from fastapi.middleware.cors import CORSMiddleware
+
 
 # Load environment variables
 load_dotenv()
 
-# Fix for Windows asyncio subprocess issues
-if platform.system() == "Windows":
-    # Set the event loop policy to WindowsProactorEventLoopPolicy
-    if sys.version_info >= (3, 8):
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
 # Initialize FastAPI app
 app = FastAPI(title="Browser Automation API", version="1.0.0")
 
-# Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Or better: ["http://localhost:3000"] or wherever your frontend is running
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# --- Configuration ---
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 AIML_API_KEY = os.environ.get("AIML_API_KEY")
 AIML_API_ENDPOINT = os.environ.get("AIML_API_ENDPOINT")
 
-# Chrome configuration
-chrome_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-user_data_dir = "C:\\Users\\amrra\\AppData\\Local\\Google\\Chrome\\User Data\\Default"
+# --- Brave configuration (macOS) ---
+# FIXED: Using the robust way to get your home directory
+HOME = os.path.expanduser("~")
+chrome_path = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+user_data_dir = os.path.join(HOME, "Library/Application Support/BraveSoftware/Brave-Browser/")
 remote_debug_port = "9422"
 
 # Controller setup
@@ -39,15 +46,10 @@ controller = Controller()
 
 @controller.action('Presses a specified keyboard key down and holds it.')
 async def press_keyboard_down(key: str, page) -> ActionResult:
-    """
-    Dispatches a keydown event for the specified key.
-    Useful for holding down modifier keys (e.g., Shift, Control)
-    while performing other actions.
-    """
     await page.keyboard.down(key)
     return ActionResult(extracted_content=f'Keyboard key "{key}" is now pressed down.')
 
-# Pydantic models for API requests/responses
+# Pydantic models
 class TaskRequest(BaseModel):
     task: str
     use_llm_cleaning: bool = True
@@ -57,53 +59,55 @@ class TaskResponse(BaseModel):
     result: Optional[str] = None
     error: Optional[str] = None
 
-# Helper functions
+# Helpers
 def close_all_chrome():
-    """Close all Chrome processes"""
-    print("Closing all Chrome processes...")
+    print("Closing all Brave processes...")
     try:
-        # For Windows
-        os.system("taskkill /f /im chrome.exe")
-        # For macOS (if needed)
-        # os.system("osascript -e 'quit app \"Google Chrome\"'")
-        # os.system("pkill -f 'Google Chrome'")
+        os.system("pkill -f 'Brave Browser'")
         time.sleep(2)
-        print("All Chrome processes closed.")
+        print("All Brave processes closed.")
     except Exception as e:
-        print(f"Error closing Chrome: {e}")
+        print(f"Error closing Brave: {e}")
+
 
 def start_chrome():
-    """Start Chrome with remote debugging"""
-    print("Starting Chrome with remote debugging...")
+    print("Starting Brave with remote debugging...")
     try:
-        # Kill any existing Chrome processes first
-        os.system("taskkill /f /im chrome.exe 2>nul")
-        time.sleep(2)
-        
+        # kill any running Brave
+        close_all_chrome()
+
+        # FIXED: Lock files are inside the specific profile directory, not the user_data_dir
+        profile_path = os.path.join(user_data_dir, "Profile 1")
+        for lock in ("LOCK", "SingletonLock"):
+            fn = os.path.join(profile_path, lock)
+            if os.path.exists(fn):
+                try:
+                    os.remove(fn)
+                    print(f"Removed stale {lock} from profile directory")
+                except OSError as e:
+                    print(f"Error removing lock file {fn}: {e}")
+
+        # Command to launch Brave with your "abdolla" profile
         chrome_cmd = [
             chrome_path,
             f"--remote-debugging-port={remote_debug_port}",
             f"--user-data-dir={user_data_dir}",
+            "--profile-directory=Profile 1",
             "--no-first-run",
             "--no-default-browser-check",
-            "--disable-extensions",
-            "--disable-default-apps"
         ]
-        
-        # Use CREATE_NEW_CONSOLE to avoid blocking
-        if platform.system() == "Windows":
-            subprocess.Popen(chrome_cmd, creationflags=subprocess.CREATE_NEW_CONSOLE)
-        else:
-            subprocess.Popen(chrome_cmd)
-            
-        print(f"Chrome started on port {remote_debug_port}")
-        time.sleep(5)  # Give Chrome more time to start properly
+
+        subprocess.Popen(chrome_cmd)
+        print(f"Attempting to start Brave on port {remote_debug_port} with profile 'Profile 1'...")
+        time.sleep(5)
+
     except Exception as e:
-        print(f"Error starting Chrome: {e}")
+        print(f"Error starting Brave: {e}")
         raise
 
+
+
 def get_cleaned_task(task: str) -> str:
-    """Clean and enhance the task using LLM"""
     try:
         response = litellm.completion(
             model="openai/nvidia/llama-3.1-nemotron-70b-instruct",
@@ -112,7 +116,7 @@ def get_cleaned_task(task: str) -> str:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an AI agent that is capable of controlling a web browser. You have already logged in. You can perform actions like clicking buttons, filling forms, scrolling down and navigating pages. Your task is to automate the process of retrieving specific information from the page, and other tasks like adding things to shopping cart etc. You cannot miss any detail on a page therefore you would scroll to every section. Please provide step-by-step instructions on how to achieve this.",
+                    "content": "You are an AI agent that controls a web browser...",
                 },
                 {
                     "role": "user",
@@ -122,21 +126,14 @@ def get_cleaned_task(task: str) -> str:
         )
         return response.choices[0].message.content
     except Exception as e:
-        print(f"Error cleaning task with LLM: {e}")
-        return task  # Return original task if cleaning fails
+        print(f"LLM cleaning failed: {e}")
+        return task
 
 async def execute_browser_task(task: str) -> str:
-    """Execute the browser automation task"""
     try:
-        # Give Chrome more time to fully start
         await asyncio.sleep(5)
-        
-        # Connect to the pre-existing Chrome via CDP
-        browser_session = BrowserSession(
-            cdp_url=f"http://127.0.0.1:{remote_debug_port}",
-        )
-
-        print("Connecting to Chrome using gpt-4o...")
+        browser_session = BrowserSession(cdp_url=f"http://127.0.0.1:{remote_debug_port}")
+        print("Connecting to Brave using gpt-4o...")
         agent = Agent(
             task=task,
             llm=ChatOpenAI(
@@ -147,91 +144,53 @@ async def execute_browser_task(task: str) -> str:
             browser_session=browser_session,
             controller=controller,
         )
-        
         result = await agent.run()
         return str(result)
     except Exception as e:
-        print(f"Error executing browser task: {e}")
+        print(f"Agent error: {e}")
         raise
 
-# API Routes
+# Routes
 @app.get("/")
 async def root():
-    """Health check endpoint"""
     return {"message": "Browser Automation API is running"}
 
 @app.post("/execute-task", response_model=TaskResponse)
 async def execute_task(request: TaskRequest):
-    """
-    Execute a browser automation task
-    
-    Args:
-        request: TaskRequest containing the task description and options
-        
-    Returns:
-        TaskResponse with success status and result/error
-    """
     try:
-        # Validate required environment variables
         if not OPENAI_API_KEY:
-            raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
-        
-        # Close any existing Chrome instances
-        close_all_chrome()
-        time.sleep(2)
-        
-        # Start Chrome
+            raise HTTPException(status_code=500, detail="Missing OPENAI_API_KEY")
         start_chrome()
-        
-        # Clean the task if requested
+
         task_to_execute = request.task
         if request.use_llm_cleaning and AIML_API_KEY:
-            task_to_execute = get_cleaned_task(request.task)
+            task_to_execute = get_cleaned_task(task_to_execute)
             print(f"Cleaned task: {task_to_execute}")
-        
-        # Execute the browser task
+
         result = await execute_browser_task(task_to_execute)
-        
-        # Close Chrome
         close_all_chrome()
-        
         return TaskResponse(success=True, result=result)
-        
     except Exception as e:
-        # Ensure Chrome is closed even on error
         close_all_chrome()
-        error_msg = f"Error executing task: {str(e)}"
-        print(error_msg)
-        return TaskResponse(success=False, error=error_msg)
+        return TaskResponse(success=False, error=f"Error: {str(e)}")
 
 @app.post("/start-chrome")
 async def start_chrome_endpoint():
-    """Start Chrome browser for debugging"""
     try:
-        close_all_chrome()
-        time.sleep(2)
         start_chrome()
-        return {"message": "Chrome started successfully", "port": remote_debug_port}
+        return {"message": "Brave started", "port": remote_debug_port}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start Chrome: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start Brave: {e}")
 
 @app.post("/stop-chrome")
 async def stop_chrome_endpoint():
-    """Stop Chrome browser"""
     try:
         close_all_chrome()
-        return {"message": "Chrome stopped successfully"}
+        return {"message": "Brave stopped"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to stop Chrome: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to stop Brave: {e}")
 
-# Run the server
+# Main
 if __name__ == "__main__":
     import uvicorn
-    
-    # Additional Windows-specific configuration
-    if platform.system() == "Windows":
-        # Ensure we're using the right event loop policy
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    uvicorn.run(app, host="0.0.0.0", port=8000, loop="asyncio")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
