@@ -33,22 +33,6 @@ function ARComponent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
 
-  // Automatically request mic/camera permissions on title page
-  useEffect(() => {
-    if (!sessionActive) {
-      navigator.mediaDevices
-        .getUserMedia({ audio: true, video: true })
-        .then((stream) => {
-          // Optionally, you can set the stream to videoRef or state if needed
-          setVideoStream(stream);
-        })
-        .catch((err) => {
-          // Handle denied permissions or errors
-          setVideoStream(null);
-        });
-    }
-  }, [sessionActive]);
-
   useEffect(() => {
     const handleContent = (data: any) => {
       if (data.content) {
