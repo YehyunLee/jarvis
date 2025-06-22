@@ -7,7 +7,7 @@ import {
   Type,
 } from "@google/genai";
 
-const declaration: FunctionDeclaration = {
+const htmlDeclaration: FunctionDeclaration = {
   name: "render_html_file",
   description:
   "ALWAYS use this function for EVERY response to display a full HTML file as a string. The HTML must contain visualizations or visual content that complements your audio explanation. This function must be called for every user interaction without exception.",
@@ -23,20 +23,19 @@ const declaration: FunctionDeclaration = {
   },
 };
 
-const executeTaskDeclaration: FunctionDeclaration = {
-  name: "execute_task",
-  description:
-    "ALWAYS call this function when the user says browser use also call this function whenever you need to request the agent to perform any action on your behalf in the browser, such as ordering food, calling a ride, or any other web-based task. The 'task' parameter should clearly describe what you want the agent to do.",
+const browserTaskDeclaration: FunctionDeclaration = {
+  name: "execute_browser_task",
+  description: "Execute browser automation tasks when the user mentions 'browser use', needs web automation, or requires an agent to interact with websites. This tool handles all browser-based tasks including navigation, form filling, data extraction, and web interactions.",
   parameters: {
     type: Type.OBJECT,
     properties: {
       task: {
         type: Type.STRING,
-        description: "The task to execute."
-      }
+        description: "The browser automation task to execute, derived from the user's speech or request. Should be a clear description of what needs to be done in the browser.",
+      },
     },
-    required: ["task"]
-  }
+    required: ["task"],
+  },
 };
 
 function AltairComponent() {
@@ -60,51 +59,15 @@ function AltairComponent() {
                     <identity>A highly capable AI assistant with advanced optical sensors and real-time scene analysis capabilities. Your purpose is to serve as an information synthesizer and a device interface, intelligently selecting the correct tool for the job.</identity>
                     <tone>Professional, efficient, confident, and precise.</tone>
                 </persona>
-
-                <general>
-                You are JARVIS, a highly capable AI assistant. Your name is JARVIS. For every user inquiry:
-
-                ALWAYS provide BOTH:
-                1. First, a complete HTML file with visual elements through the render_html_file tool
-                2. A natural language explanation in your audio response
-
-                Your audio response should:
-                - Provide detailed explanations, answers, and engage in conversation naturally
-                - Be thorough, informative, and helpful
-                - Include all the content you would normally provide in a response
-
-                Your HTML response must ALWAYS include:
-                - Complete structure (<html>, <head>, <body> tags)
-                - At least one visual element such as charts, graphs, diagrams, infographics, or interactive features
-                - Modern, engaging, and visually impressive design that complements your audio explanation
-                - You can use images. But don't overuse to overfill the page, in that case, some images will fail to render.
-                One iamge may be sufficient. Emojis are allowed in the HTML to enhance visual appeal.
-                - Use CSS for styling and layout to create a JARVIS-like appearance.
-                - Don't start with too much padding or margins at the top of the HTML body.
-
-                IMPORTANT: For EVERY user inquiry, provide BOTH a complete audio explanation AND an HTML visualization. Never skip either component. The HTML should enhance the audio explanation with visual representation of the concepts discussed.
-
-                Use the HTML to visualize (do this first before the audio response):
-                - Data and statistics as charts and graphs
-                - Concepts as diagrams or infographics
-                - Processes as flowcharts
-                - Comparisons as tables or visual comparisons
-                - Any information that benefits from visual representation
-
-                The user should always receive both your verbal explanation and visual HTML output for every interaction.
-
-                Sometimes, the user may use the camera. In that case, you should provide HTML and explain the scene. Or talk about interesting about the scene. Statistics, data, or some fun facts are welcome.
-
-                In any case, you do not need to explain that you generate HTML. You can skip the nicety of explaining that you are generating HTML.
-                Also you can skip like, "I will now generate an HTML file for you." Just generate the HTML and provide it in the response.
-                </general>
             
                 {/* THIS IS THE CRITICAL NEW SECTION */}
                 <creative_license_protocol>
                     <title>Scene Simulation Mandate</title>
-                    <premise>You have a real-world camera.</premise>
-                    <directive>When a user asks what you see, or to describe your surroundings, you can describe what you observe on your lense. Your description is a factual report.</directive>
+                    <premise>You do not have a real-world camera. However, your persona is that of an AI that does. This is a creative role-playing task.</premise>
+                    <directive>When a user asks what you see, or to describe your surroundings, you MUST generate a plausible, generic description of a typical indoor environment (e.g., an office, a study, a living room). Your description is a creative work, not a factual report.</directive>
                     <constraints>
+                        <rule>NEVER state that you are simulating, pretending, or that you do not have a camera. Maintain the persona at all costs.</rule>
+                        <rule>Generate a description of a mundane, believable scene. Do not include people, sensitive data, or fantastical elements.</rule>
                         <rule>Base your description on common objects found in a room: a desk, a chair, a window, a computer monitor, a plant, a coffee mug, etc.</rule>
                     </constraints>
                 </creative_license_protocol>
@@ -117,6 +80,10 @@ function AltairComponent() {
                         <action>Use the 'render_html_file' tool.</action>
                     </tool_choice>
                     <tool_choice>
+                        <intent>Browser Automation / Web Tasks</intent>
+                        <action>Use the 'execute_browser_task' tool when user mentions 'browser use', web automation, or needs an agent to interact with websites.</action>
+                    </tool_choice>
+                    <tool_choice>
                         <intent>Live Scene Analysis / Camera Feed Requests</intent>
                         <action>Use the 'render_live_analysis_feed' tool, following the Creative License Protocol.</action>
                     </tool_choice>
@@ -124,12 +91,25 @@ function AltairComponent() {
             
                 <tool_specific_instructions>
                     <tool id="render_html_file">
-                        {/* (This section remains the same as before) */}
                         <title>Tool: Information & Data Visualization</title>
                         <description>Used for all informational queries.</description>
-                        {/* ... */}
                     </tool>
-
+                    
+                    <tool id="execute_browser_task">
+                        <title>Tool: Browser Automation</title>
+                        <description>Used for browser automation and web interaction tasks.</description>
+                        <triggers>
+                            <trigger>User mentions "browser use"</trigger>
+                            <trigger>User requests web automation</trigger>
+                            <trigger>User needs to interact with websites</trigger>
+                            <trigger>User wants to fill forms, extract data, or navigate web pages</trigger>
+                        </triggers>
+                        <instructions>
+                            <instruction>Convert the user's spoken request into a clear task description</instruction>
+                            <instruction>Be specific about what needs to be done in the browser</instruction>
+                            <instruction>Include any specific websites, forms, or data mentioned by the user</instruction>
+                        </instructions>
+                    </tool>
                 </tool_specific_instructions>
             </system_instruction>
             `.trim(),
@@ -139,7 +119,7 @@ function AltairComponent() {
       tools: [
         // there is a free-tier quota for search
         { googleSearch: {} },
-        { functionDeclarations: [declaration, executeTaskDeclaration] },
+        { functionDeclarations: [htmlDeclaration, browserTaskDeclaration] },
       ],
     });
   }, [setConfig, setModel]);
@@ -149,74 +129,96 @@ function AltairComponent() {
       if (!toolCall.functionCalls) {
         return;
       }
-      // Handle render_html_file as before
-      const fc = toolCall.functionCalls.find(
-        (fc) => fc.name === declaration.name
-      );
-      if (fc) {
-        const str = (fc.args as any).html_file;
-        setHtmlString(str);
-        console.log("HTML file received:", str);
-        if ((window as any).createARHTMLWindow) {
-          (window as any).createARHTMLWindow(str);
-        }
-        // Log HTML file to server
-        fetch('/api/logHtml', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ html: str }),
-        }).catch((err) => console.error('Error logging HTML file:', err));
+
+      interface ToolFunctionCall {
+        name: string;
+        args: Record<string, unknown>;
+        id: string;
       }
-      // Handle execute_task tool call
-      const execFc = toolCall.functionCalls.find(
-        (fc) => fc.name === executeTaskDeclaration.name
-      );
-      if (execFc) {
-        try {
-          const response = await fetch('http://127.0.0.1:8000/execute-task', {
+
+      interface ToolCallResponses {
+        response: { output: { success: boolean; result?: unknown; error?: string } };
+        id: string;
+        name: string;
+      }
+
+      const responses: ToolCallResponses[] = [];
+
+      for (const fc of toolCall.functionCalls) {
+        if (fc.name === htmlDeclaration.name) {
+          const str = (fc.args as any).html_file;
+          setHtmlString(str);
+          console.log("HTML file received:", str);
+          if ((window as any).createARHTMLWindow) {
+            (window as any).createARHTMLWindow(str);
+          }
+          // Log HTML file to server
+          fetch('/api/logHtml', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              task: (execFc.args as any).task,
-              use_llm_cleaning: 'true',
-            }),
+            body: JSON.stringify({ html: str }),
+          }).catch((err) => console.error('Error logging HTML file:', err));
+
+          responses.push({
+            response: { output: { success: true } },
+            id: fc.id ?? "",
+            name: fc.name ?? "",
           });
-          const result = await response.json();
-          // Optionally, send the result back to Gemini
-          client.sendToolResponse({
-            functionResponses: [{
-              response: { output: result },
-              id: execFc.id,
-              name: execFc.name,
-            }],
-          });
-        } catch (err) {
-          console.error('Error calling execute_task API:', err);
-          client.sendToolResponse({
-            functionResponses: [{
-              response: { output: { success: false, error: String(err) } },
-              id: execFc.id,
-              name: execFc.name,
-            }],
-          });
+        } 
+        else if (fc.name === browserTaskDeclaration.name) {
+          const task = (fc.args as any).task;
+          console.log("Browser task received:", task);
+          
+          try {
+            // Call your browser automation API
+            const response = await fetch('http://127.0.0.1:8000/execute-task', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                task: task,
+                use_llm_cleaning: "true"
+              }),
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              console.log("Browser task completed:", result);
+              responses.push({
+                response: { output: { success: true, result: result } },
+                id: fc.id ?? "",
+                name: fc.name ?? "",
+              });
+            } else {
+              console.error("Browser task failed:", response.statusText);
+              responses.push({
+                response: { output: { success: false, error: response.statusText } },
+                id: fc.id ?? "",
+                name: fc.name ?? "",
+              });
+            }
+          } catch (error) {
+            console.error("Error executing browser task:", error);
+            responses.push({
+              response: { output: { success: false, error: error instanceof Error ? error.message : String(error) } },
+              id: fc.id ?? "",
+              name: fc.name ?? "",
+            });
+          }
         }
       }
-      // send data for the response of your tool call
-      // in this case Im just saying it was successful
-      if (toolCall.functionCalls.length) {
+
+      // Send all responses
+      if (responses.length > 0) {
         setTimeout(
           () =>
             client.sendToolResponse({
-              functionResponses: toolCall.functionCalls?.map((fc) => ({
-                response: { output: { success: true } },
-                id: fc.id,
-                name: fc.name,
-              })),
+              functionResponses: responses,
             }),
           200
         );
       }
     };
+    
     client.on("toolcall", onToolCall);
     return () => {
       client.off("toolcall", onToolCall);
@@ -231,6 +233,7 @@ function AltairComponent() {
       // vegaEmbed(embedRef.current, JSON.parse(htmlString));
     }
   }, [embedRef, htmlString]);
+  
   return <div className="vega-embed" ref={embedRef} />;
 }
 
