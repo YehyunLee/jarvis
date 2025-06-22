@@ -291,10 +291,17 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     dragDepth: 0,
     dragOffset: new THREE.Vector3(),
     dragPlane: new THREE.Plane(),
+    initialMousePos: new THREE.Vector2(),
+    currentMousePos: new THREE.Vector2(),
+    isDraggingWithMouse: false,
+    smoothingFactor: 0.15, // For smooth interpolation
+    targetPosition: new THREE.Vector3(),
+    lastFrameTime: 0,
   });
   const videoRef = useRef<HTMLVideoElement>(null);
   const webcam = useWebcam();
   const overlayRef = useRef<HTMLDivElement>(null);
+  const hintRef = useRef<HTMLDivElement>(null);
 
   // Compute a fresh spawn position in front of the user, offsetting by angle to avoid overlap
   const createWindow = (scene: THREE.Scene, options: any = {}) => {
@@ -358,6 +365,15 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   React.useImperativeHandle(ref, () => ({
     createHTMLWindow: async (htmlContent: string, options?: any) => {
       await createHTMLWindow(htmlContent, options);
+      // Show interaction hint for first window
+      if (windowsRef.current.length === 1 && hintRef.current) {
+        hintRef.current.classList.add('visible');
+        setTimeout(() => {
+          if (hintRef.current) {
+            hintRef.current.classList.remove('visible');
+          }
+        }, 3000);
+      }
     },
   }));
   // Expose createHTMLWindow globally for external calls
@@ -397,11 +413,30 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     }
   };
 
-  const startDrag = (windowObj: InstanceType<typeof ARWindow>) => {
-    if (!rendererRef.current || !rendererRef.current.xr.isPresenting) return;
+  const startDrag = (windowObj: InstanceType<typeof ARWindow>, isMouseDrag = false, mousePos?: THREE.Vector2) => {
     const dragState = dragStateRef.current;
     dragState.isDragging = true;
     dragState.draggedWindow = windowObj;
+    
+    // Add visual feedback - slightly scale up the window being dragged
+    windowObj.group.scale.setScalar(1.05);
+    
+    if (isMouseDrag && mousePos) {
+      // Mouse/touch dragging for non-AR mode
+      dragState.isDraggingWithMouse = true;
+      dragState.initialMousePos.copy(mousePos);
+      dragState.currentMousePos.copy(mousePos);
+      
+      // Store initial window position
+      dragState.targetPosition.copy(windowObj.group.position);
+      dragState.lastFrameTime = performance.now();
+      return;
+    }
+    
+    // XR controller dragging
+    if (!rendererRef.current || !rendererRef.current.xr.isPresenting) return;
+    dragState.isDraggingWithMouse = false;
+    
     const controller = rendererRef.current.xr.getController(0);
     const xrCamera = rendererRef.current.xr.getCamera();
     const objectWorldPosition = new THREE.Vector3();
@@ -422,8 +457,26 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   const updateDrag = () => {
     const dragState = dragStateRef.current;
     if (!dragState.isDragging || !dragState.draggedWindow || !rendererRef.current) return;
+
+    if (dragState.isDraggingWithMouse) {
+      // Mouse/touch dragging - smooth interpolation to target position with frame rate independence
+      const currentTime = performance.now();
+      const deltaTime = currentTime - dragState.lastFrameTime;
+      dragState.lastFrameTime = currentTime;
+      
+      // Adaptive smoothing based on frame rate (target 60fps)
+      const frameRateAdjustment = Math.min(deltaTime / 16.67, 2.0); // Clamp to prevent jumps
+      const adjustedSmoothing = Math.min(dragState.smoothingFactor * frameRateAdjustment, 0.8);
+      
+      const currentPos = dragState.draggedWindow.group.position;
+      currentPos.lerp(dragState.targetPosition, adjustedSmoothing);
+      return;
+    }
+
+    // XR controller dragging
     const controller = rendererRef.current.xr.getController(0);
     const xrCamera = rendererRef.current.xr.getCamera();
+    
     // Check if pointer still over title-bar region; otherwise cancel drag
     const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
     const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(
@@ -431,6 +484,7 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     );
     const raycaster = new THREE.Raycaster();
     raycaster.set(origin, direction);
+    
     // Raycast against the window to see if we've "let go"
     const intersects = raycaster.intersectObject(dragState.draggedWindow.contentMesh!, false);
     if (intersects.length === 0) {
@@ -462,7 +516,14 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
 
   const endDrag = () => {
     const dragState = dragStateRef.current;
+    
+    // Remove visual feedback - restore normal scale
+    if (dragState.draggedWindow) {
+      dragState.draggedWindow.group.scale.setScalar(1.0);
+    }
+    
     dragState.isDragging = false;
+    dragState.isDraggingWithMouse = false;
     dragState.draggedWindow = null;
   };
 
@@ -596,17 +657,266 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     controller.addEventListener('selectstart', onSelectStart);
     controller.addEventListener('selectend', onSelectEnd);
 
+    // Mouse and touch interactions for non-AR mode
+    const mouse = new THREE.Vector2();
+    const raycasterMouse = new THREE.Raycaster();
+    let isMouseDown = false;
+    let mouseDownTimer: NodeJS.Timeout | null = null;
+    let mouseDownPosition = new THREE.Vector2();
+    let potentialDragWindow: InstanceType<typeof ARWindow> | null = null;
+    const DRAG_THRESHOLD = 0.01; // Movement threshold to start dragging
+
+    const updateMousePosition = (clientX: number, clientY: number) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    };
+
+    const getIntersectedWindow = () => {
+      raycasterMouse.setFromCamera(mouse, camera);
+      const allPlanes = windowsRef.current.map(w => w.contentMesh!).filter(Boolean) as THREE.Mesh[];
+      const hits = raycasterMouse.intersectObjects(allPlanes, false);
+      if (hits.length === 0) return null;
+      
+      const hit = hits[0];
+      const windowId = hit.object.userData.windowId as string;
+      const windowObj = windowsRef.current.find(w => w.id === windowId);
+      return { windowObj, hit };
+    };
+
+    const handleMouseDown = (event: MouseEvent) => {
+      event.preventDefault();
+      if (renderer.xr.isPresenting) return; // Don't handle mouse in AR mode
+      
+      updateMousePosition(event.clientX, event.clientY);
+      mouseDownPosition.copy(mouse);
+      const result = getIntersectedWindow();
+      if (!result) return;
+      
+      const { windowObj, hit } = result;
+      const uv = hit.uv;
+      if (!uv || !windowObj) return;
+
+      isMouseDown = true;
+      potentialDragWindow = null;
+      
+      // Check if clicking in title bar area for dragging
+      const totalUnits = CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS;
+      const titleUVThreshold = CONFIG.TITLE_BAR_HEIGHT_UNITS / totalUnits;
+      
+      if (uv.y >= 1 - titleUVThreshold) {
+        // Clicking in title bar area - check for close button
+        const startPx = CONFIG.CONTENT_WIDTH - CONFIG.CLOSE_BUTTON_SIZE - 16;
+        const endPx = CONFIG.CONTENT_WIDTH - 16;
+        const uvX = uv.x;
+        const startUV = startPx / CONFIG.CONTENT_WIDTH;
+        const endUV = endPx / CONFIG.CONTENT_WIDTH;
+        
+        if (uvX >= startUV && uvX <= endUV) {
+          // Close button clicked - immediate action, no dragging
+          windowObj.destroy();
+          windowsRef.current = windowsRef.current.filter(w => w !== windowObj);
+          return;
+        }
+        
+        // Store potential drag window - will start dragging on mouse move
+        potentialDragWindow = windowObj;
+      }
+    };
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (renderer.xr.isPresenting) return;
+      
+      updateMousePosition(event.clientX, event.clientY);
+      const dragState = dragStateRef.current;
+      
+      // Check if we should start dragging based on movement threshold
+      if (isMouseDown && potentialDragWindow && !dragState.isDragging) {
+        const movementDistance = mouse.distanceTo(mouseDownPosition);
+        if (movementDistance > DRAG_THRESHOLD) {
+          // Clear any existing timer and start dragging immediately
+          if (mouseDownTimer) {
+            clearTimeout(mouseDownTimer);
+            mouseDownTimer = null;
+          }
+          startDrag(potentialDragWindow, true, mouseDownPosition.clone());
+          potentialDragWindow = null;
+        }
+      }
+      
+      if (dragState.isDragging && dragState.isDraggingWithMouse && dragState.draggedWindow) {
+        // Update current mouse position
+        const prevMousePos = dragState.currentMousePos.clone();
+        dragState.currentMousePos.copy(mouse);
+        
+        // Calculate movement delta
+        const deltaX = mouse.x - dragState.initialMousePos.x;
+        const deltaY = mouse.y - dragState.initialMousePos.y;
+        
+        // Calculate movement speed for adaptive sensitivity
+        const movementSpeed = prevMousePos.distanceTo(mouse);
+        const baseSensitivity = 3.5;
+        const maxSensitivity = 8.0;
+        const sensitivity = Math.min(baseSensitivity + movementSpeed * 20, maxSensitivity);
+        
+        // Update target position based on camera orientation
+        const cameraDirection = new THREE.Vector3();
+        camera.getWorldDirection(cameraDirection);
+        
+        // Create movement vectors perpendicular to camera direction
+        const right = new THREE.Vector3();
+        right.crossVectors(camera.up, cameraDirection).normalize();
+        const up = new THREE.Vector3();
+        up.crossVectors(cameraDirection, right).normalize();
+        
+        // Calculate new target position
+        const startPos = dragState.draggedWindow.group.position.clone();
+        dragState.targetPosition.copy(startPos);
+        dragState.targetPosition.add(right.multiplyScalar(deltaX * sensitivity));
+        dragState.targetPosition.add(up.multiplyScalar(deltaY * sensitivity));
+        
+        // Update initial position for next frame
+        dragState.initialMousePos.copy(mouse);
+      } else {
+        // Change cursor on hover over windows
+        const result = getIntersectedWindow();
+        if (result) {
+          const { hit } = result;
+          const uv = hit.uv;
+          if (uv) {
+            const totalUnits = CONFIG.PLANE_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_UNITS;
+            const titleUVThreshold = CONFIG.TITLE_BAR_HEIGHT_UNITS / totalUnits;
+            
+            if (uv.y >= 1 - titleUVThreshold) {
+              // In title bar area
+              const startPx = CONFIG.CONTENT_WIDTH - CONFIG.CLOSE_BUTTON_SIZE - 16;
+              const endPx = CONFIG.CONTENT_WIDTH - 16;
+              const uvX = uv.x;
+              const startUV = startPx / CONFIG.CONTENT_WIDTH;
+              const endUV = endPx / CONFIG.CONTENT_WIDTH;
+              
+              if (uvX >= startUV && uvX <= endUV) {
+                renderer.domElement.style.cursor = 'pointer'; // Close button
+              } else {
+                renderer.domElement.style.cursor = 'move'; // Draggable area
+              }
+            } else {
+              renderer.domElement.style.cursor = 'default'; // Content area
+            }
+          }
+        } else {
+          renderer.domElement.style.cursor = 'default';
+        }
+      }
+    };
+
+    const handleMouseUp = (event: MouseEvent) => {
+      if (renderer.xr.isPresenting) return;
+      
+      isMouseDown = false;
+      potentialDragWindow = null; // Clear potential drag window
+      
+      if (mouseDownTimer) {
+        clearTimeout(mouseDownTimer);
+        mouseDownTimer = null;
+      }
+      
+      if (dragStateRef.current.isDragging) {
+        endDrag();
+      }
+    };
+
+    // Touch event handlers for mobile
+    const handleTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      const mouseEvent = new MouseEvent('mousedown', {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+      });
+      handleMouseDown(mouseEvent);
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      event.preventDefault(); // Prevent scrolling
+      const touch = event.touches[0];
+      const mouseEvent = new MouseEvent('mousemove', {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+      });
+      handleMouseMove(mouseEvent);
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      const mouseEvent = new MouseEvent('mouseup', {});
+      handleMouseUp(mouseEvent);
+    };
+
+    // Add event listeners
+    renderer.domElement.addEventListener('mousedown', handleMouseDown);
+    renderer.domElement.addEventListener('mousemove', handleMouseMove);
+    renderer.domElement.addEventListener('mouseup', handleMouseUp);
+    renderer.domElement.addEventListener('mouseleave', handleMouseUp); // End drag when leaving canvas
+    
+    renderer.domElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+    renderer.domElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+    renderer.domElement.addEventListener('touchend', handleTouchEnd);
+    renderer.domElement.addEventListener('touchcancel', handleTouchEnd);
+
+    // Keyboard shortcuts for window management
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (renderer.xr.isPresenting) return;
+      
+      // ESC to close focused/hovered window
+      if (event.key === 'Escape' && windowsRef.current.length > 0) {
+        const lastWindow = windowsRef.current[windowsRef.current.length - 1];
+        lastWindow.destroy();
+        windowsRef.current = windowsRef.current.filter(w => w !== lastWindow);
+      }
+      
+      // Ctrl/Cmd + W to close all windows
+      if ((event.ctrlKey || event.metaKey) && event.key === 'w') {
+        event.preventDefault();
+        windowsRef.current.forEach(w => w.destroy());
+        windowsRef.current = [];
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
     renderer.setAnimationLoop(() => {
       updateDrag();
       if (renderer.xr.isPresenting) {
         const xrCamera = renderer.xr.getCamera();
         windowsRef.current.forEach(w => w.group.lookAt(xrCamera.position));
+      } else {
+        // In non-AR mode, don't make windows look at camera during drag for better UX
+        windowsRef.current.forEach(w => {
+          if (!dragStateRef.current.isDragging || dragStateRef.current.draggedWindow !== w) {
+            w.group.lookAt(camera.position);
+          }
+        });
       }
       renderer.render(scene, camera);
       cssRenderer.render(scene, camera);
     });
 
     return () => {
+      // Clean up event listeners
+      if (mouseDownTimer) clearTimeout(mouseDownTimer);
+      isMouseDown = false;
+      potentialDragWindow = null;
+      document.removeEventListener('keydown', handleKeyDown);
+      renderer.domElement.removeEventListener('mousedown', handleMouseDown);
+      renderer.domElement.removeEventListener('mousemove', handleMouseMove);
+      renderer.domElement.removeEventListener('mouseup', handleMouseUp);
+      renderer.domElement.removeEventListener('mouseleave', handleMouseUp);
+      renderer.domElement.removeEventListener('touchstart', handleTouchStart);
+      renderer.domElement.removeEventListener('touchmove', handleTouchMove);
+      renderer.domElement.removeEventListener('touchend', handleTouchEnd);
+      renderer.domElement.removeEventListener('touchcancel', handleTouchEnd);
+      
       // Clean up CSS3D renderer
       if (cssRendererRef.current && mountRef.current?.contains(cssRendererRef.current.domElement)) {
         mountRef.current.removeChild(cssRendererRef.current.domElement);
@@ -644,6 +954,21 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
       <video ref={videoRef} className="ar-video-bg" autoPlay muted playsInline />
       <div ref={mountRef} className="ar-scene-container" />
       <div ref={overlayRef} style={{ position:'absolute', top:0, left:0, width:'100%', height:'100%', pointerEvents:'auto', overflow:'visible', zIndex: 10 }} />
+      
+      {/* Interaction hint for non-AR mode */}
+      <div 
+        ref={hintRef} 
+        className="ar-interaction-hint"
+        style={{ 
+          position: 'absolute', 
+          bottom: '80px', 
+          left: '50%', 
+          transform: 'translateX(-50%)',
+          zIndex: 50 
+        }}
+      >
+        Drag title bar to move • Click × to close • ESC to close last window
+      </div>
     </div>
     );
 });
