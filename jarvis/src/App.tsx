@@ -2,7 +2,7 @@ import { LiveAPIProvider } from "./contexts/LiveAPIContext";
 import { LiveClientOptions } from "./types";
 import ARScene, { ARSceneHandles } from "./components/ar-scene/ARScene";
 import "./App.scss";
-import { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { useLiveAPIContext } from "./contexts/LiveAPIContext";
 import ControlTray from "./components/control-tray/ControlTray";
 import { Altair } from "./components/altair/Altair";
@@ -16,19 +16,47 @@ const apiOptions: LiveClientOptions = {
   apiKey: API_KEY,
 };
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: any) {
+    // You can log error here
+    // console.error(error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ color: "red", padding: 40 }}>
+          <h2>Something went wrong.</h2>
+          <pre>{this.state.error.message}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
+  const [arKey, setArKey] = useState(0);
   return (
     <div className="App">
       <LiveAPIProvider options={apiOptions}>
-        <ARComponent />
+        <ErrorBoundary>
+          <ARComponent key={arKey} onSessionReset={() => setArKey((k) => k + 1)} />
+        </ErrorBoundary>
       </LiveAPIProvider>
     </div>
   );
 }
 
-function ARComponent() {
+function ARComponent({ onSessionReset }: { onSessionReset?: () => void }) {
   const arSceneRef = useRef<ARSceneHandles>(null);
-  const { client } = useLiveAPIContext();
+  const { client, disconnect } = useLiveAPIContext();
   const [sessionActive, setSessionActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
@@ -272,6 +300,10 @@ function ARComponent() {
         onSessionEnd={() => {
           setSessionActive(false);
           setVideoStream(null);
+          disconnect();
+          setTimeout(() => {
+            window.location.reload(); // Force full reload to return to title page
+          }, 100);
         }}
       />
       {sessionActive && (
