@@ -29,7 +29,6 @@ const ARWindow = class {
   title: string;
   position: { x: number; y: number; z: number };
   cssObject: CSS3DObject | null = null;
-  scrollInterval: number | null = null;
 
   constructor(id: string, scene: THREE.Scene, options: any = {}) {
     this.id = id;
@@ -69,13 +68,6 @@ const ARWindow = class {
   }
 
   async setHTMLContent(htmlContent: string) {
-    // Validate HTML content: parse as XML to catch well-formedness errors
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(`<wrapper>${htmlContent}</wrapper>`, 'application/xml');
-    if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
-      console.warn(`Invalid HTML content for window ${this.id}, aborting creation.`);
-      return;
-    }
     if (this.cssObject) {
       this.group.remove(this.cssObject);
       this.cssObject = null;
@@ -131,16 +123,6 @@ const ARWindow = class {
     // contentDiv.style.whiteSpace = 'pre';
     contentDiv.innerHTML = htmlContent;
     container.appendChild(contentDiv);
-    // Auto-scroll HTML content (loop back when reaching bottom)
-    if (this.scrollInterval) clearInterval(this.scrollInterval);
-    this.scrollInterval = window.setInterval(() => {
-      const maxScroll = contentDiv.scrollHeight - contentDiv.clientHeight;
-      if (contentDiv.scrollTop >= maxScroll) {
-        contentDiv.scrollTop = 0;
-      } else {
-        contentDiv.scrollTop += 1;
-      }
-    }, 50);
     const cssObj = new CSS3DObject(container);
     // Position to align with content plane
     cssObj.position.copy(this.contentMesh!.position);
@@ -267,8 +249,6 @@ const ARWindow = class {
   }
 
   destroy() {
-    // Clear auto-scroll interval
-    if (this.scrollInterval) clearInterval(this.scrollInterval);
     if (this.group.parent) {
       this.group.parent.remove(this.group);
     }
