@@ -77,8 +77,7 @@ function AltairComponent() {
                 - Complete structure (<html>, <head>, <body> tags)
                 - At least one visual element such as charts, graphs, diagrams, infographics, or interactive features
                 - Modern, engaging, and visually impressive design that complements your audio explanation
-                - You can use images. But don't overuse to overfill the page, in that case, some images will fail to render.
-                One iamge may be sufficient. Emojis are allowed in the HTML to enhance visual appeal.
+                - Avoid using images. Instead emojis are allowed in the HTML to enhance visual appeal.
                 - Use CSS for styling and layout to create a JARVIS-like appearance.
                 - Don't start with too much padding or margins at the top of the HTML body.
 
