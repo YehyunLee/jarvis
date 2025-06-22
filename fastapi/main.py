@@ -1,114 +1,109 @@
-import requests
-import json
-import litellm
-import os
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import asyncio
+import sys
+import platform
+from dotenv import load_dotenv
+from browser_use import Agent, BrowserSession, Controller, ActionResult
+from langchain_openai import ChatOpenAI
+import os
 import subprocess
 import time
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+import litellm
+from typing import Optional
 
-# --- Environment Setup ---
+# Load environment variables
 load_dotenv()
 
-# API Keys and Endpoints
+# Fix for Windows asyncio subprocess issues
+if platform.system() == "Windows":
+    # Set the event loop policy to WindowsProactorEventLoopPolicy
+    if sys.version_info >= (3, 8):
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+# Initialize FastAPI app
+app = FastAPI(title="Browser Automation API", version="1.0.0")
+
+# Configuration
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 AIML_API_KEY = os.environ.get("AIML_API_KEY")
 AIML_API_ENDPOINT = os.environ.get("AIML_API_ENDPOINT")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL") # Recommended: Store webhook in .env
 
-# Chrome Configuration (Windows-specific paths from your script)
-CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-USER_DATA_DIR = "C:\\Users\\amrra\\AppData\\Local\\Google\\Chrome\\User Data\\Default"
-REMOTE_DEBUG_PORT = "9422"
+# Chrome configuration
+chrome_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+user_data_dir = "C:\\Users\\amrra\\AppData\\Local\\Google\\Chrome\\User Data\\Default"
+remote_debug_port = "9422"
 
-# --- Custom Modules (included directly for simplicity) ---
-# NOTE: The following classes (Agent, BrowserSession, Controller, etc.) are based on your
-# provided snippets. You would replace these with your actual module imports.
-# For this example, I will create placeholder classes to make the code runnable.
-
-class ActionResult(BaseModel):
-    extracted_content: str
-
-class Controller:
-    def __init__(self):
-        self.actions = {}
-    def action(self, description: str):
-        def decorator(func):
-            self.actions[func.__name__] = {"desc": description, "func": func}
-            return func
-        return decorator
-
+# Controller setup
 controller = Controller()
 
-# Mock Browser/Agent classes to make the example self-contained and runnable
-# In your actual implementation, you would import these from your modules.
-class MockPage:
-    async def goto(self, url: str):
-        print(f"Navigating to {url}")
-        await asyncio.sleep(1)
-    async def close(self):
-        print("Page closed.")
-        await asyncio.sleep(0.5)
-
-class BrowserSession:
-    def __init__(self, cdp_url: str):
-        self.cdp_url = cdp_url
-        print(f"Attempting to connect to browser at {self.cdp_url}")
-    
-    async def get_page(self) -> MockPage:
-        print("Getting new page from browser session.")
-        return MockPage()
-    
-    async def close(self):
-        print("Browser session closed.")
-
-class Agent:
-    def __init__(self, task: str, llm, browser_session: BrowserSession, controller: Controller):
-        self.task = task
-        self.llm = llm
-        self.browser_session = browser_session
-        self.controller = controller
-        print(f"Agent initialized for task: {self.task}")
-
-    async def run(self):
-        print("Agent is running the task...")
-        # Simulate agent performing actions
-        page = await self.browser_session.get_page()
-        await page.goto("https://www.doordash.com")
-        # In a real scenario, the agent would perform complex actions here
-        await page.close()
-        result = f"Successfully completed task: {self.task}"
-        print(result)
-        return result
-
-# You can keep your custom LangChain/OpenAI models here
-# from langchain_openai import ChatOpenAI
-
-# --- Core Functions ---
-
-def send_discord_webhook(webhook_url, message_content):
+@controller.action('Presses a specified keyboard key down and holds it.')
+async def press_keyboard_down(key: str, page) -> ActionResult:
     """
-    Sends a markdown formatted message to a Discord webhook.
+    Dispatches a keydown event for the specified key.
+    Useful for holding down modifier keys (e.g., Shift, Control)
+    while performing other actions.
     """
-    if not webhook_url:
-        print("Discord webhook URL not set. Skipping message.")
-        return
-    headers = {"Content-Type": "application/json"}
-    payload = {"content": message_content}
+    await page.keyboard.down(key)
+    return ActionResult(extracted_content=f'Keyboard key "{key}" is now pressed down.')
+
+# Pydantic models for API requests/responses
+class TaskRequest(BaseModel):
+    task: str
+    use_llm_cleaning: bool = True
+
+class TaskResponse(BaseModel):
+    success: bool
+    result: Optional[str] = None
+    error: Optional[str] = None
+
+# Helper functions
+def close_all_chrome():
+    """Close all Chrome processes"""
+    print("Closing all Chrome processes...")
     try:
-        response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
-        print(f"Discord message sent successfully! Status Code: {response.status_code}")
-    except requests.exceptions.RequestException as err:
-        print(f"An error occurred while sending Discord message: {err}")
+        # For Windows
+        os.system("taskkill /f /im chrome.exe")
+        # For macOS (if needed)
+        # os.system("osascript -e 'quit app \"Google Chrome\"'")
+        # os.system("pkill -f 'Google Chrome'")
+        time.sleep(2)
+        print("All Chrome processes closed.")
+    except Exception as e:
+        print(f"Error closing Chrome: {e}")
+
+def start_chrome():
+    """Start Chrome with remote debugging"""
+    print("Starting Chrome with remote debugging...")
+    try:
+        # Kill any existing Chrome processes first
+        os.system("taskkill /f /im chrome.exe 2>nul")
+        time.sleep(2)
+        
+        chrome_cmd = [
+            chrome_path,
+            f"--remote-debugging-port={remote_debug_port}",
+            f"--user-data-dir={user_data_dir}",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-extensions",
+            "--disable-default-apps"
+        ]
+        
+        # Use CREATE_NEW_CONSOLE to avoid blocking
+        if platform.system() == "Windows":
+            subprocess.Popen(chrome_cmd, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        else:
+            subprocess.Popen(chrome_cmd)
+            
+        print(f"Chrome started on port {remote_debug_port}")
+        time.sleep(5)  # Give Chrome more time to start properly
+    except Exception as e:
+        print(f"Error starting Chrome: {e}")
+        raise
 
 def get_cleaned_task(task: str) -> str:
-    """
-    Processes the initial prompt with an LLM to generate detailed steps.
-    """
-    print("Cleaning and detailing task with LLM...")
+    """Clean and enhance the task using LLM"""
     try:
         response = litellm.completion(
             model="openai/nvidia/llama-3.1-nemotron-70b-instruct",
@@ -125,106 +120,118 @@ def get_cleaned_task(task: str) -> str:
                 },
             ],
         )
-        cleaned_task = response.choices[0].message.content
-        print(f"Cleaned task received: {cleaned_task}")
-        return cleaned_task
+        return response.choices[0].message.content
     except Exception as e:
-        print(f"Error calling litellm for task cleaning: {e}")
-        raise HTTPException(status_code=500, detail="Failed to process prompt with language model.")
+        print(f"Error cleaning task with LLM: {e}")
+        return task  # Return original task if cleaning fails
 
-def close_all_chrome():
-    """Closes all Chrome processes (Windows-specific)."""
-    print("Closing all Chrome processes...")
+async def execute_browser_task(task: str) -> str:
+    """Execute the browser automation task"""
     try:
-        # Use taskkill to forcefully terminate Chrome processes on Windows
-        subprocess.run(["taskkill", "/F", "/IM", "chrome.exe"], check=True, capture_output=True, text=True)
-        print("All Chrome processes terminated.")
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"Could not terminate Chrome (it might not have been running): {e}")
-    time.sleep(2)
-
-
-def start_chrome():
-    """Starts Chrome with remote debugging enabled (Windows-specific)."""
-    print("Starting Chrome with remote debugging...")
-    chrome_cmd = [
-        CHROME_PATH,
-        f"--remote-debugging-port={REMOTE_DEBUG_PORT}",
-        f"--user-data-dir={USER_DATA_DIR}"
-    ]
-    subprocess.Popen(chrome_cmd)
-    print(f"Chrome started on port {REMOTE_DEBUG_PORT}.")
-    time.sleep(3) # Give Chrome time to start
-
-async def task_fxn(task: str):
-    """
-    The core asynchronous function that connects to the browser and runs the agent.
-    """
-    # This is a placeholder for your ChatOpenAI model initialization
-    llm_placeholder = {"model": "gpt-4o", "api_key": OPENAI_API_KEY}
-    
-    browser_session = BrowserSession(cdp_url=f"http://127.0.0.1:{REMOTE_DEBUG_PORT}")
-    
-    agent = Agent(
-        task=task,
-        llm=llm_placeholder, # Replace with your actual ChatOpenAI instance
-        browser_session=browser_session,
-        controller=controller,
-    )
-    return await agent.run()
-
-# --- FastAPI API Definition ---
-
-app = FastAPI(
-    title="Web Automation Agent API",
-    description="An API to trigger a web automation agent with a natural language prompt.",
-)
-
-class AgentRequest(BaseModel):
-    prompt: str = Field(
-        ...,
-        example="Go on doordash and order me the first bubble tea you find.",
-        description="The natural language task for the agent to perform."
-    )
-
-@app.post("/run-agent", summary="Run the web automation agent")
-async def run_agent_endpoint(request: AgentRequest):
-    """
-    This endpoint takes a prompt, processes it to generate a detailed task list,
-    and then executes the web automation agent to perform the task.
-
-    It correctly handles blocking I/O in a separate thread.
-    """
-    initial_prompt = request.prompt
-    send_discord_webhook(DISCORD_WEBHOOK_URL, f"# JARVIS CALLED\n**Task:** {initial_prompt}")
-
-    # Using a placeholder for the cleaned task as before
-    # You can uncomment the litellm call if your API key is set up
-    # cleaned_task = get_cleaned_task(initial_prompt)
-    cleaned_task = initial_prompt
-
-    try:
-        # Run blocking functions in a separate thread to avoid blocking the event loop
-        await asyncio.to_thread(close_all_chrome)
-        await asyncio.to_thread(start_chrome)
-
-        # Now that the endpoint is async, we can directly await the async function
-        result = await task_fxn(task=cleaned_task)
+        # Give Chrome more time to fully start
+        await asyncio.sleep(5)
         
-        send_discord_webhook(DISCORD_WEBHOOK_URL, f"## ✅ Task Completed\n**Result:** {result}")
-        
-        return {"status": "success", "result": result}
+        # Connect to the pre-existing Chrome via CDP
+        browser_session = BrowserSession(
+            cdp_url=f"http://127.0.0.1:{remote_debug_port}",
+        )
 
-    except HTTPException as http_exc:
-        # Forward HTTP exceptions from deeper layers
-        send_discord_webhook(DISCORD_WEBHOOK_URL, f"## ❌ Task Failed\n**Reason:** {http_exc.detail}")
-        raise http_exc
+        print("Connecting to Chrome using gpt-4o...")
+        agent = Agent(
+            task=task,
+            llm=ChatOpenAI(
+                model="gpt-4o",
+                api_key=OPENAI_API_KEY,
+                base_url="https://api.openai.com/v1",
+            ),
+            browser_session=browser_session,
+            controller=controller,
+        )
+        
+        result = await agent.run()
+        return str(result)
     except Exception as e:
-        # Catch any other unexpected errors
-        error_message = f"An unexpected server error occurred: {e}"
-        send_discord_webhook(DISCORD_WEBHOOK_URL, f"## ❌ Task Failed\n**Reason:** {error_message}")
-        raise HTTPException(status_code=500, detail=error_message)
-    finally:
-        # Ensure Chrome is always closed, even if errors occur
-        print("Ensuring cleanup in the finally block...")
-        await asyncio.to_thread(close_all_chrome)
+        print(f"Error executing browser task: {e}")
+        raise
+
+# API Routes
+@app.get("/")
+async def root():
+    """Health check endpoint"""
+    return {"message": "Browser Automation API is running"}
+
+@app.post("/execute-task", response_model=TaskResponse)
+async def execute_task(request: TaskRequest):
+    """
+    Execute a browser automation task
+    
+    Args:
+        request: TaskRequest containing the task description and options
+        
+    Returns:
+        TaskResponse with success status and result/error
+    """
+    try:
+        # Validate required environment variables
+        if not OPENAI_API_KEY:
+            raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
+        
+        # Close any existing Chrome instances
+        close_all_chrome()
+        time.sleep(2)
+        
+        # Start Chrome
+        start_chrome()
+        
+        # Clean the task if requested
+        task_to_execute = request.task
+        if request.use_llm_cleaning and AIML_API_KEY:
+            task_to_execute = get_cleaned_task(request.task)
+            print(f"Cleaned task: {task_to_execute}")
+        
+        # Execute the browser task
+        result = await execute_browser_task(task_to_execute)
+        
+        # Close Chrome
+        close_all_chrome()
+        
+        return TaskResponse(success=True, result=result)
+        
+    except Exception as e:
+        # Ensure Chrome is closed even on error
+        close_all_chrome()
+        error_msg = f"Error executing task: {str(e)}"
+        print(error_msg)
+        return TaskResponse(success=False, error=error_msg)
+
+@app.post("/start-chrome")
+async def start_chrome_endpoint():
+    """Start Chrome browser for debugging"""
+    try:
+        close_all_chrome()
+        time.sleep(2)
+        start_chrome()
+        return {"message": "Chrome started successfully", "port": remote_debug_port}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start Chrome: {str(e)}")
+
+@app.post("/stop-chrome")
+async def stop_chrome_endpoint():
+    """Stop Chrome browser"""
+    try:
+        close_all_chrome()
+        return {"message": "Chrome stopped successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stop Chrome: {str(e)}")
+
+# Run the server
+if __name__ == "__main__":
+    import uvicorn
+    
+    # Additional Windows-specific configuration
+    if platform.system() == "Windows":
+        # Ensure we're using the right event loop policy
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    uvicorn.run(app, host="0.0.0.0", port=8000, loop="asyncio")
