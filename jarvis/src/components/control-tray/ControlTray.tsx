@@ -220,13 +220,13 @@ function ControlTray({
 
         {supportsVideo && (
           <>
-            <MediaStreamButton
+            {/* <MediaStreamButton
               isStreaming={screenCapture.isStreaming}
               start={changeStreams(screenCapture)}
               stop={changeStreams()}
               onIcon="cancel_presentation"
               offIcon="present_to_all"
-            />
+            /> */}
             <MediaStreamButton
               isStreaming={webcam.isStreaming}
               start={changeStreams(webcam)}
@@ -239,7 +239,7 @@ function ControlTray({
         {children}
       </nav>
 
-      <div className={cn("connection-container", { connected })}>
+      {/* <div className={cn("connection-container", { connected })}>
         <div className="connection-button-container">
           <button
             ref={connectButtonRef}
@@ -252,7 +252,7 @@ function ControlTray({
           </button>
         </div>
         <span className="text-indicator">Streaming</span>
-      </div>
+      </div> */}
       {/* {enableEditingSettings ? <SettingsDialog /> : ""} */}
     </section>
   );
