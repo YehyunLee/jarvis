@@ -123,6 +123,16 @@ const ARWindow = class {
     // contentDiv.style.whiteSpace = 'pre';
     contentDiv.innerHTML = htmlContent;
     container.appendChild(contentDiv);
+    // auto-scroll the content area to bottom at a slow pace
+    typeof window !== 'undefined' && (() => {
+      const scrollInterval = setInterval(() => {
+        if (contentDiv.scrollTop + contentDiv.clientHeight >= contentDiv.scrollHeight) {
+          clearInterval(scrollInterval);
+        } else {
+          contentDiv.scrollTop += 1;
+        }
+      }, 50);
+    })();
     const cssObj = new CSS3DObject(container);
     // Position to align with content plane
     cssObj.position.copy(this.contentMesh!.position);
