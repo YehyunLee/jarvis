@@ -69,6 +69,13 @@ const ARWindow = class {
   }
 
   async setHTMLContent(htmlContent: string) {
+    // Validate HTML content: parse as XML to catch well-formedness errors
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(`<wrapper>${htmlContent}</wrapper>`, 'application/xml');
+    if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+      console.warn(`Invalid HTML content for window ${this.id}, aborting creation.`);
+      return;
+    }
     if (this.cssObject) {
       this.group.remove(this.cssObject);
       this.cssObject = null;
