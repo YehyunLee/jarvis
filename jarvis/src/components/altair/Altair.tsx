@@ -8,7 +8,7 @@ import {
 } from "@google/genai";
 
 // No changes to htmlDeclaration
-const declaration: FunctionDeclaration = {
+const htmlDeclaration: FunctionDeclaration = {
   name: "render_html_file",
   description:
   "Use this function for response to display a full HTML file as a string. The HTML must contain visualizations or visual content that complements your audio explanation. This function must be called for every user interaction without exception.",
@@ -166,68 +166,70 @@ function AltairComponent() {
       tools: [
         // there is a free-tier quota for search
         { googleSearch: {} },
-        { functionDeclarations: [declaration, executeTaskDeclaration] },
+        { functionDeclarations: [htmlDeclaration, executeTaskDeclaration] },
       ],
     });
   }, [setConfig, setModel]);
 
   useEffect(() => {
     const onToolCall = async (toolCall: LiveServerToolCall) => {
-      if (!toolCall.functionCalls) {
-        return;
-      }
-      // Handle render_html_file as before
-      const fc = toolCall.functionCalls.find(
-        (fc) => fc.name === declaration.name
-      );
-      if (fc) {
-        const str = (fc.args as any).html_file;
-        setHtmlString(str);
-        console.log("HTML file received:", str);
+      if (!toolCall.functionCalls) return;
+
+      const responses: any[] = [];
+
+
+      for (const fc of toolCall.functionCalls) {
+        if (fc.name == htmlDeclaration.name) {
+          const str = (fc.args as any).html_file
+          setHtmlString(str)
         if ((window as any).createARHTMLWindow) {
           (window as any).createARHTMLWindow(str);
         }
-        // Log HTML file to server
-        fetch('/api/logHtml', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ html: str }),
-        }).catch((err) => console.error('Error logging HTML file:', err));
-      }
-      // Handle execute_task tool call
-      const execFc = toolCall.functionCalls.find(
-        (fc) => fc.name === executeTaskDeclaration.name
-      );
-      if (execFc) {
-        try {
-          const response = await fetch('http://127.0.0.1:8000/execute-task', {
+        }
+        else if (fc.name == executeTaskDeclaration.name) {
+          const { task, structured_task } = fc.args as { task?: string; structured_task?: object };
+
+          try {
+            const baseUrl = process.env.REACT_APP_BROWSER_AUTOMATION_API_URL || "http://127.0.0.1:8000";
+            const response = await fetch(`${baseUrl}/execute-task`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              task: (execFc.args as any).task,
-              use_llm_cleaning: 'true',
+                task: task,
+                structured_task: structured_task,
+                use_llm_cleaning: true
             }),
           });
+  
+            if (response.ok) {
           const result = await response.json();
-          // Optionally, send the result back to Gemini
-          client.sendToolResponse({
-            functionResponses: [{
-              response: { output: result },
-              id: execFc.id,
-              name: execFc.name,
-            }],
+              console.log("Browser task completed successfully:", result);
+              responses.push({
+                response: { output: { success: true, result: result } },
+                id: fc.id,
+                name: fc.name,
+              });
+            } else {
+
+              responses.push({
+                response: { output: { success: false, error: `API Error: ${response.statusText}` } },
+                id: fc.id,
+                name: fc.name,
           });
-        } catch (err) {
-          console.error('Error calling execute_task API:', err);
-          client.sendToolResponse({
-            functionResponses: [{
-              response: { output: { success: false, error: String(err) } },
-              id: execFc.id,
-              name: execFc.name,
-            }],
+            }
+          }
+          catch (error) {
+            console.error("Error executing browser task:", error);
+            responses.push({
+              response: { output: { success: false, error: error instanceof Error ? error.message : String(error) } },
+              id: fc.id,
+              name: fc.name,
           });
         }
       }
+    } 
+
+      // Handle execute_task tool call
       // send data for the response of your tool call
       // in this case Im just saying it was successful
       if (toolCall.functionCalls.length) {
