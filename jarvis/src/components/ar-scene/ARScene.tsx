@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { ARButton } from 'three/examples/jsm/webxr/ARButton.js';
 import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
@@ -89,7 +89,7 @@ const ARWindow = class {
     titleDiv.style.fontFamily = '"Space Mono", monospace';
     titleDiv.style.fontWeight = 'bold';
     titleDiv.style.fontSize = `${CONFIG.TITLE_BAR_HEIGHT_PX * 0.4}px`;
-    titleDiv.style.padding = '0 20px';
+    // titleDiv.style.padding = '0 20px';
     titleDiv.style.display = 'flex';
     titleDiv.style.alignItems = 'center';
     titleDiv.style.justifyContent = 'space-between';
@@ -102,7 +102,7 @@ const ARWindow = class {
     closeBtn.textContent = '×';
     closeBtn.style.position = 'absolute';
     closeBtn.style.right = '8px';
-    closeBtn.style.top = '50%';
+    // closeBtn.style.top = '50%';
     closeBtn.style.transform = 'translateY(-50%)';
     closeBtn.style.cursor = 'pointer';
     closeBtn.style.fontSize = `${CONFIG.CLOSE_BUTTON_SIZE * 0.6}px`;
@@ -120,7 +120,7 @@ const ARWindow = class {
     contentDiv.style.overflowX = 'auto';
     contentDiv.style.overflowY = 'auto';
     // Ensure content can extend horizontally if needed
-    contentDiv.style.whiteSpace = 'pre';
+    // contentDiv.style.whiteSpace = 'pre';
     contentDiv.innerHTML = htmlContent;
     container.appendChild(contentDiv);
     const cssObj = new CSS3DObject(container);
@@ -149,11 +149,11 @@ const ARWindow = class {
     }
     const container = document.createElement('div');
     container.style.width = `${CONFIG.CONTENT_WIDTH}px`;
-    container.style.height = `${CONFIG.CONTENT_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_PX}px`;
+    // container.style.height = `${CONFIG.CONTENT_HEIGHT + CONFIG.TITLE_BAR_HEIGHT_PX}px`;
     container.style.overflow = 'visible'; // allow content overflow
     container.style.background = 'white';
     const titleDiv = document.createElement('div');
-    titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
+    // titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
     // Jarvis-style neon header
     titleDiv.style.background = 'rgba(10, 10, 20, 0.8)';
     titleDiv.style.borderBottom = '2px solid #00FFEA';
@@ -162,7 +162,7 @@ const ARWindow = class {
     titleDiv.style.fontFamily = '"Space Mono", monospace';
     titleDiv.style.fontWeight = 'bold';
     titleDiv.style.fontSize = `${CONFIG.TITLE_BAR_HEIGHT_PX * 0.4}px`;
-    titleDiv.style.padding = '0 20px';
+    // titleDiv.style.padding = '0 20px';
     titleDiv.style.display = 'flex';
     titleDiv.style.alignItems = 'center';
     titleDiv.style.justifyContent = 'space-between';
@@ -295,7 +295,6 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const webcam = useWebcam();
   const overlayRef = useRef<HTMLDivElement>(null);
-  const [session, setSession] = useState<XRSession | null>(null);
 
   // Compute a fresh spawn position in front of the user, offsetting by angle to avoid overlap
   const createWindow = (scene: THREE.Scene, options: any = {}) => {
@@ -379,34 +378,6 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
       delete (window as any).createARHTMLWindow;
     };
   }, []);
-
-  const initAR = async () => {
-    const newSession = await navigator.xr.requestSession("immersive-ar", {
-      optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking", "hit-test"],
-      domOverlay: { root: overlayRef.current },
-    });
-
-    newSession.addEventListener("select", (event) => {
-      const hitTestSource = event.inputSource.hitTestSource;
-      if (hitTestSource) {
-        const hitTestResults = event.frame.getHitTestResults(hitTestSource);
-        if (hitTestResults.length > 0) {
-          const hitTestPose = hitTestResults[0].getPose(newSession.renderState.baseLayer.getView(event.frame.views[0]).transform.inverse());
-          createWindow(sceneRef.current, { position: hitTestPose.transform.position });
-        }
-      }
-    });
-
-    setSession(newSession);
-    if (props.onSessionStart) {
-      props.onSessionStart();
-    }
-
-    if (rendererRef.current) {
-      rendererRef.current.xr.setReferenceSpaceType("local");
-      rendererRef.current.xr.setSession(newSession);
-    }
-  };
 
   // Interaction handling
   const handleInteraction = (intersection: THREE.Intersection, isPress: boolean) => {
