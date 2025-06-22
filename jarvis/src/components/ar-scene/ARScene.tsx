@@ -153,7 +153,7 @@ const ARWindow = class {
     container.style.overflow = 'visible'; // allow content overflow
     container.style.background = 'white';
     const titleDiv = document.createElement('div');
-    // titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}px`;
+    // titleDiv.style.height = `${CONFIG.TITLE_BAR_HEIGHT_PX}`;
     // Jarvis-style neon header
     titleDiv.style.background = 'rgba(10, 10, 20, 0.8)';
     titleDiv.style.borderBottom = '2px solid #00FFEA';
@@ -303,6 +303,44 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const hintRef = useRef<HTMLDivElement>(null);
 
+  // Function to create a zoom scrollbar for a window
+  const setupScrollbar = (windowObj: InstanceType<typeof ARWindow>) => {
+    if (!overlayRef.current || !cameraRef.current) return;
+    const idx = windowsRef.current.indexOf(windowObj);
+    const scrollbar = document.createElement('div');
+    // Style scrollbar
+    scrollbar.style.position = 'absolute';
+    scrollbar.style.top = '50%';
+    scrollbar.style.transform = 'translateY(-50%)';
+    scrollbar.style.right = `${20 + idx * 36}px`; // gap between scrollbars
+    scrollbar.style.width = '16px';
+    scrollbar.style.height = '200px'; // adjust as needed
+    scrollbar.style.overflowY = 'scroll';
+    scrollbar.style.background = 'rgba(255,255,255,0.2)';
+    // Add an inner spacer to enable scrolling
+    const spacer = document.createElement('div');
+    spacer.style.height = '400px';
+    scrollbar.appendChild(spacer);
+    overlayRef.current.appendChild(scrollbar);
+    // Center scrollbar
+    const center = scrollbar.scrollHeight / 2 - scrollbar.clientHeight / 2;
+    scrollbar.scrollTop = center;
+    let lastScrollTop = center;
+    scrollbar.addEventListener('scroll', () => {
+      const newScrollTop = scrollbar.scrollTop;
+      const delta = newScrollTop - lastScrollTop;
+      lastScrollTop = newScrollTop;
+      const dir = new THREE.Vector3();
+      cameraRef.current!.getWorldDirection(dir);
+      dir.normalize();
+      // Move this window along gaze direction
+      windowObj.group.position.add(dir.multiplyScalar(delta * 0.02));
+      // reset to center for continuous scroll
+      scrollbar.scrollTop = center;
+      lastScrollTop = center;
+    });
+  };
+
   // Compute a fresh spawn position in front of the user, offsetting by angle to avoid overlap
   const createWindow = (scene: THREE.Scene, options: any = {}) => {
     // Determine base camera for positioning
@@ -352,6 +390,7 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     if (!sceneRef.current) return;
     const win = createWindow(sceneRef.current, options);
     await win.setHTMLContent(htmlContent);
+    setupScrollbar(win);
     return win;
   };
 
@@ -359,6 +398,7 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     if (!sceneRef.current) return;
     const win = createWindow(sceneRef.current, options);
     await win.setIframeContent(url);
+    setupScrollbar(win);
     return win;
   };
 
