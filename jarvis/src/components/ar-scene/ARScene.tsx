@@ -307,6 +307,8 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
     smoothingFactor: 0.15, // For smooth interpolation
     targetPosition: new THREE.Vector3(),
     lastFrameTime: 0,
+    velocity: new THREE.Vector3(),      // track drag velocity
+    lastPosition: new THREE.Vector3(),  // previous pos for velocity calculation
   });
   const videoRef = useRef<HTMLVideoElement>(null);
   const webcam = useWebcam();
@@ -476,10 +478,10 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
       dragState.isDraggingWithMouse = true;
       dragState.initialMousePos.copy(mousePos);
       dragState.currentMousePos.copy(mousePos);
-      
-      // Store initial window position
       dragState.targetPosition.copy(windowObj.group.position);
       dragState.lastFrameTime = performance.now();
+      dragState.lastPosition.copy(windowObj.group.position);  // initialize for velocity
+      dragState.velocity.set(0, 0, 0);                         // reset velocity
       return;
     }
     
@@ -513,13 +515,21 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
       const currentTime = performance.now();
       const deltaTime = currentTime - dragState.lastFrameTime;
       dragState.lastFrameTime = currentTime;
-      
+
       // Adaptive smoothing based on frame rate (target 60fps)
-      const frameRateAdjustment = Math.min(deltaTime / 16.67, 2.0); // Clamp to prevent jumps
+      const frameRateAdjustment = Math.min(deltaTime / 16.67, 2.0);
       const adjustedSmoothing = Math.min(dragState.smoothingFactor * frameRateAdjustment, 0.8);
-      
-      const currentPos = dragState.draggedWindow.group.position;
+
+      const currentPos = dragState.draggedWindow!.group.position;
       currentPos.lerp(dragState.targetPosition, adjustedSmoothing);
+
+      // calculate velocity for inertia (units/sec)
+      const velocityVec = new THREE.Vector3()
+        .subVectors(currentPos, dragState.lastPosition)
+        .divideScalar(deltaTime / 1000);
+      dragState.velocity.copy(velocityVec);
+      dragState.lastPosition.copy(currentPos);
+
       return;
     }
 
@@ -566,15 +576,28 @@ const ARScene = React.forwardRef<ARSceneHandles, ARSceneProps>((props, ref) => {
 
   const endDrag = () => {
     const dragState = dragStateRef.current;
-    
+    const windowObj = dragState.draggedWindow;  // capture before clearing
     // Remove visual feedback - restore normal scale
-    if (dragState.draggedWindow) {
-      dragState.draggedWindow.group.scale.setScalar(1.0);
-    }
-    
+    if (windowObj) windowObj.group.scale.setScalar(1.0);
+
     dragState.isDragging = false;
     dragState.isDraggingWithMouse = false;
     dragState.draggedWindow = null;
+
+    // apply inertia/momentum on mouse drag release
+    if (windowObj && dragState.velocity.length() > 0.01) {
+      let velocity = dragState.velocity.clone();
+      const friction = 0.85;
+      const decayThreshold = 0.001;
+      const applyInertia = () => {
+        windowObj.group.position.add(velocity);
+        velocity.multiplyScalar(friction);
+        if (velocity.length() > decayThreshold) {
+          requestAnimationFrame(applyInertia);
+        }
+      };
+      applyInertia();
+    }
   };
 
   useEffect(() => {
